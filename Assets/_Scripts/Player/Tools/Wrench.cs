@@ -25,7 +25,7 @@ public class Wrench : MonoBehaviour
     {
         if (collision.gameObject.tag == "Box")
         {
-            stationManager.points += addPoints;
+            StationManager.Instance.Points += addPoints;
             Destroy(gameObject);
         }
     }

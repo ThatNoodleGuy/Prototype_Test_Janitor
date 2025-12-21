@@ -7,63 +7,63 @@ using UnityEngine.UI;
 public class StationManager : Singleton<StationManager>
 {
     [Header("Resources")]
-    public float powerAmount;
-    public float oxygenAmount;
-    public float points;
+    [SerializeField] private float powerAmount;
+    [SerializeField] private float oxygenAmount;
+    [SerializeField] private float points;
 
     [Header("Storage References")]
-    public Storage powerStorage;
-    public Storage oxygenStorage;
+    [SerializeField] private Storage powerStorage;
+    [SerializeField] private Storage oxygenStorage;
 
     [Header("Station References")]
-    public WorkStation workStation;
-    public RoomController[] rooms;
+    [SerializeField] private WorkStation workStation;
+    [SerializeField] private RoomController[] rooms;
 
     [Header("Audio")]
-    public AudioSource workstationAudioSource;
-    public AudioSource playerAudioSource;
-    public AudioClip workstationOff;
-    public AudioClip upgradeBuilding;
-    public AudioClip upgradeGear;
-    public AudioClip upgradeFail;
-    public AudioClip clickUI;
+    [SerializeField] private AudioSource workstationAudioSource;
+    [SerializeField] private AudioSource playerAudioSource;
+    [SerializeField] private AudioClip workstationOff;
+    [SerializeField] private AudioClip upgradeBuilding;
+    [SerializeField] private AudioClip upgradeGear;
+    [SerializeField] private AudioClip upgradeFail;
+    [SerializeField] private AudioClip clickUI;
 
     [Header("Monitor UI (Main Screen)")]
-    public Button viewBtn;
-    public GameObject homeUI;
-    public GameObject storeUI;
-    public Button StartBtnUI;
-    public GameObject workingIcon;
-    public Text scoreUI;
-    public Text powerTextUI;
-    public Text oxygenTextUI;
-    public Text workstationLvlMain;
-    public Text workstationCurrproductionMain;
+    [SerializeField] private Button viewBtn;
+    [SerializeField] private GameObject homeUI;
+    [SerializeField] private GameObject storeUI;
+    [SerializeField] private Button StartBtnUI;
+    [SerializeField] private GameObject workingIcon;
+    [SerializeField] private Text scoreUI;
+    [SerializeField] private Text powerTextUI;
+    [SerializeField] private Text oxygenTextUI;
+    [SerializeField] private Text workstationLvlMain;
+    [SerializeField] private Text workstationCurrproductionMain;
 
     [Header("Store UI: SpaceShip")]
-    public Text powerStorageLvl;
-    public Text powerCurrAmount;
-    public Text powerNextLvlAmount;
-    public Text powerUpgradeCost;
-    public Text oxygenStorageLvl;
-    public Text oxygenCurrAmount;
-    public Text oxygenNextLvlAmount;
-    public Text oxygenUpgradeCost;
-    public Text workstationLvl;
-    public Text workstationCurrproduction;
-    public Text workstationNextLvlproduction;
-    public Text workStationUpgradeCost;
+    [SerializeField] private Text powerStorageLvl;
+    [SerializeField] private Text powerCurrAmount;
+    [SerializeField] private Text powerNextLvlAmount;
+    [SerializeField] private Text powerUpgradeCost;
+    [SerializeField] private Text oxygenStorageLvl;
+    [SerializeField] private Text oxygenCurrAmount;
+    [SerializeField] private Text oxygenNextLvlAmount;
+    [SerializeField] private Text oxygenUpgradeCost;
+    [SerializeField] private Text workstationLvl;
+    [SerializeField] private Text workstationCurrproduction;
+    [SerializeField] private Text workstationNextLvlproduction;
+    [SerializeField] private Text workStationUpgradeCost;
 
     [Header("Store UI: Player Gear")]
-    public Text healCostText;
-    public Text maskLvl;
-    public Text maskCostText;
-    public Text timeInRooms;
-    public Text oxygenBaloonCost;
-    public Text oxygenLvl;
+    [SerializeField] private Text healCostText;
+    [SerializeField] private Text maskLvl;
+    [SerializeField] private Text maskCostText;
+    [SerializeField] private Text timeInRooms;
+    [SerializeField] private Text oxygenBaloonCost;
+    [SerializeField] private Text oxygenLvl;
 
     // State tracking
-    public bool isHomeScreen = true;
+    [SerializeField] private bool isHomeScreen = true;
     private bool hasPlayedWorkstationOff;
 
     // Player references
@@ -71,17 +71,75 @@ public class StationManager : Singleton<StationManager>
     private PlayerOxygen playerOxygen;
     private PlayerHealth playerHealth;
 
+    // ===== PUBLIC PROPERTIES (GETTERS/SETTERS) =====
+    
+    // Resource Properties
+    public float PowerAmount 
+    { 
+        get => powerAmount; 
+        set => powerAmount = value; 
+    }
+    
+    public float OxygenAmount 
+    { 
+        get => oxygenAmount; 
+        set => oxygenAmount = value; 
+    }
+    
+    public float Points 
+    { 
+        get => points; 
+        set 
+        {
+            points = value;
+            // Optional: Add validation or events here
+            // e.g., points = Mathf.Max(0, value);
+        }
+    }
+
+    // Storage References (Read-only - only getters)
+    public Storage PowerStorage => powerStorage;
+    public Storage OxygenStorage => oxygenStorage;
+
+    // Station References
+    public WorkStation WorkStation => workStation;
+    public RoomController[] Rooms => rooms;
+
+    // Audio References (Read-only)
+    public AudioSource WorkstationAudioSource => workstationAudioSource;
+    public AudioSource PlayerAudioSource => playerAudioSource;
+
+    // State Properties
+    public bool IsHomeScreen 
+    { 
+        get => isHomeScreen; 
+        set => isHomeScreen = value; 
+    }
+
+    public bool HasPlayedWorkstationOff 
+    { 
+        get => hasPlayedWorkstationOff; 
+        set => hasPlayedWorkstationOff = value; 
+    }
+
+    // Player References (Read-only)
+    public Mask Mask => mask;
+    public PlayerOxygen PlayerOxygen => playerOxygen;
+    public PlayerHealth PlayerHealth => playerHealth;
+
+    // ===== END PROPERTIES =====
+
     void Start()
     {
         #if UNITY_6000_0_OR_NEWER
-			playerOxygen = FindAnyObjectByType<PlayerOxygen>();
-			playerHealth = FindAnyObjectByType<PlayerHealth>();
-			mask = FindAnyObjectByType<Mask>();
-		#else
+            playerOxygen = FindAnyObjectByType<PlayerOxygen>();
+            playerHealth = FindAnyObjectByType<PlayerHealth>();
+            mask = FindAnyObjectByType<Mask>();
+        #else
             playerOxygen = FindObjectOfType<PlayerOxygen>();
             playerHealth = FindObjectOfType<PlayerHealth>();
             mask = FindObjectOfType<Mask>();
-		#endif
+        #endif
 
         // Subscribe to events
         GameEvents.OnResourceChanged += CheckWorkStatus;
@@ -394,5 +452,28 @@ public class StationManager : Singleton<StationManager>
             if (playerAudioSource != null && upgradeFail != null)
                 playerAudioSource.PlayOneShot(upgradeFail);
         }
+    }
+
+    // === HELPER METHODS FOR EXTERNAL ACCESS ===
+    
+    /// <summary>
+    /// Add points to the player's balance
+    /// </summary>
+    public void AddPoints(float amount)
+    {
+        points += amount;
+    }
+
+    /// <summary>
+    /// Remove points from the player's balance. Returns true if successful.
+    /// </summary>
+    public bool TrySpendPoints(float amount)
+    {
+        if (points >= amount)
+        {
+            points -= amount;
+            return true;
+        }
+        return false;
     }
 }

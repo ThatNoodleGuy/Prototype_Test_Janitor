@@ -53,12 +53,12 @@ public class SaveLoad : MonoBehaviour
 	public void SaveGame()
 	{
 		SaveData data = new SaveData();
-		data.powerLvlSaved = stationManager.powerStorage.level;
-		data.powerAmmountSaved = stationManager.powerStorage.amount;
-		data.oxygenLvlSaved = stationManager.oxygenStorage.level;
-		data.oxygenAmmountSaved = stationManager.oxygenStorage.amount;
-		data.workstationLvlSaved = stationManager.workStation.level;
-		data.balanceSaved = stationManager.points;
+		data.powerLvlSaved = StationManager.Instance.PowerStorage.level;
+		data.powerAmmountSaved = StationManager.Instance.PowerStorage.amount;
+		data.oxygenLvlSaved = StationManager.Instance.OxygenStorage.level;
+		data.oxygenAmmountSaved = StationManager.Instance.OxygenStorage.amount;
+		data.workstationLvlSaved = StationManager.Instance.WorkStation.level;
+		data.balanceSaved = StationManager.Instance.Points;
 		data.maskLvlSaved = player.GetComponent<Mask>().level;
 		data.oxygenBaloonLvlSaved = player.GetComponent<PlayerOxygen>().level;
 		data.playerHealthSaved = player.GetComponent<PlayerHealth>().currentHealth;
@@ -87,12 +87,12 @@ public class SaveLoad : MonoBehaviour
 	IEnumerator LoadData(SaveData _data)
 	{
 		yield return new WaitForSeconds(0.6f);
-		stationManager.powerStorage.level = _data.powerLvlSaved;
-		stationManager.powerStorage.amount = _data.powerAmmountSaved;
-		stationManager.oxygenStorage.level = _data.oxygenLvlSaved;
-		stationManager.oxygenStorage.amount = _data.oxygenAmmountSaved;
-		stationManager.workStation.level = _data.workstationLvlSaved;
-		stationManager.points = _data.balanceSaved;
+		StationManager.Instance.PowerStorage.level = _data.powerLvlSaved;
+		StationManager.Instance.PowerStorage.amount = _data.powerAmmountSaved;
+		StationManager.Instance.OxygenStorage.level = _data.oxygenLvlSaved;
+		StationManager.Instance.OxygenStorage.amount = _data.oxygenAmmountSaved;
+		StationManager.Instance.WorkStation.level = _data.workstationLvlSaved;
+		StationManager.Instance.Points = _data.balanceSaved;
 		player.GetComponent<Mask>().level = _data.maskLvlSaved;
 		player.GetComponent<PlayerOxygen>().level = _data.oxygenBaloonLvlSaved;
 		player.GetComponent<PlayerHealth>().currentHealth = _data.playerHealthSaved;

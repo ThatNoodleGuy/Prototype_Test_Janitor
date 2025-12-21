@@ -17,16 +17,16 @@ public class StorageStatusBar : MonoBehaviour
     {
 		stationManager = StationManager.Instance;
 
-        //powerAmount = stationManager.powerStorage.maxAmount;
-        //currentPower = stationManager.powerStorage.amount;
+        //powerAmount = StationManager.Instance.PowerStorage.maxAmount;
+        //currentPower = StationManager.Instance.PowerStorage.amount;
 
         currentPower = powerAmount;
-        powerSlider.value = stationManager.powerStorage.amountPerc * 100;
+        powerSlider.value = StationManager.Instance.PowerStorage.amountPerc * 100;
     }
 
     void Update()
     {
-        powerSlider.value = stationManager.powerStorage.amountPerc * 100;
+        powerSlider.value = StationManager.Instance.PowerStorage.amountPerc * 100;
         currentPower = Mathf.Clamp(currentPower, 0, powerAmount);
 
         powerSliderImage.color = Color.Lerp(Color.red, Color.green, powerSlider.value / 100);

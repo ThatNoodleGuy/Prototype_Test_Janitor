@@ -36,7 +36,7 @@ public class PlayerOxygen : MonoBehaviour
 		oxygenBar.value = amountRatio;
 		currentOxygen = Mathf.Clamp(currentOxygen, 0, oxygenAmount);
 
-		if (stationManager.oxygenStorage.amount < 0.001f)
+		if (StationManager.Instance.OxygenStorage.amount < 0.001f)
 		{
 			currentOxygen -= decreaseOxygenBy * Time.deltaTime;
 		}

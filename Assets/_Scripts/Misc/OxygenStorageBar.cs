@@ -16,16 +16,16 @@ public class OxygenStorageBar : MonoBehaviour
     {
         stationManager = StationManager.Instance;
 
-        //oxygenAmount = stationManager.oxygenStorage.maxAmount;
-        //currentOxygen = stationManager.oxygenStorage.amount;
+        //oxygenAmount = StationManager.Instance.OxygenStorage.maxAmount;
+        //currentOxygen = StationManager.Instance.OxygenStorage.amount;
 
         currentOxygen = oxygenAmount;
-        oxygenSlider.value = stationManager.oxygenStorage.amountPerc * 100;
+        oxygenSlider.value = StationManager.Instance.OxygenStorage.amountPerc * 100;
     }
 
     void Update()
     {
-        oxygenSlider.value = stationManager.oxygenStorage.amountPerc * 100;
+        oxygenSlider.value = StationManager.Instance.OxygenStorage.amountPerc * 100;
         currentOxygen = Mathf.Clamp(currentOxygen, 0, oxygenAmount);
 
         OxygenSliderImage.color = Color.Lerp(Color.grey, Color.blue, oxygenSlider.value / 100);

@@ -43,7 +43,7 @@ public class GeneralConsumpssion : MonoBehaviour
 			UsePower();
 		}
 
-		if (stationManager.powerStorage.amount <= 0)
+		if (StationManager.Instance.PowerStorage.amount <= 0)
 		{
 			LightsOff();
 			if (!hasPlayedPowerOff)
@@ -65,7 +65,7 @@ public class GeneralConsumpssion : MonoBehaviour
 			hasPlayedPowerOff = false;
 		}
 
-		if (stationManager.oxygenStorage.amount <= 0)
+		if (StationManager.Instance.OxygenStorage.amount <= 0)
 		{
 			if (!hasPlayedOxygenOff)
 			{
@@ -88,12 +88,12 @@ public class GeneralConsumpssion : MonoBehaviour
 	}
 	public void Breath()
 	{
-		stationManager.oxygenStorage.amount -= Time.deltaTime * breatheDrain;
+		StationManager.Instance.OxygenStorage.amount -= Time.deltaTime * breatheDrain;
 	}
 
 	public void UsePower()
 	{
-		stationManager.powerStorage.amount -= Time.deltaTime * powerDrain * lights.Length;
+		StationManager.Instance.PowerStorage.amount -= Time.deltaTime * powerDrain * lights.Length;
 	}
 
 	public void LightsOn()

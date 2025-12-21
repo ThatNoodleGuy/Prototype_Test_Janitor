@@ -30,11 +30,10 @@ public class WorkStation : MonoBehaviour
 
 	public void Work()
 	{
-		foreach (var item in stationManager.rooms)
+		foreach (var item in StationManager.Instance.Rooms)
 		{
 			item.myTank.amount -= item.myTank.reqAmount * level;
 		}
-		stationManager.points += addPoints;
+		StationManager.Instance.Points += addPoints; // This was already correct!
 	}
-
 }

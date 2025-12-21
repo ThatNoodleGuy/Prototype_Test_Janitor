@@ -148,12 +148,12 @@ public class GameManager : MonoBehaviour
 		PlayerPrefs.SetInt("workStationLvl", workStation.level);
 		PlayerPrefs.SetInt("maskLvl", mask.level);
 		PlayerPrefs.SetInt("oxygenBalloonLvl", playerOxygen.level);
-		PlayerPrefs.SetInt("balanceText", Mathf.RoundToInt(stationManager.points));
+		PlayerPrefs.SetInt("balanceText", Mathf.RoundToInt(StationManager.Instance.Points));
 	}
 
 	public void EndCondition()
 	{
-		if (playerHealth.currentHealth <= 0 || stationManager.points >= winPoints)
+		if (playerHealth.currentHealth <= 0 || StationManager.Instance.Points >= winPoints)
 		{
 			// EndGameScene();
 		}
