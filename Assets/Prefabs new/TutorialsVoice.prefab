@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3659523631107746759
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 9196013564657528024}
+  - component: {fileID: 3804745146166551488}
+  m_Layer: 0
+  m_Name: TutorialsVoice
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &9196013564657528024
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3659523631107746759}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: -11.261, y: 1.4, z: -40.718}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3804745146166551488
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3659523631107746759}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b097759cd3944da4e8fc3b71be23c640, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tutorailPanel: {fileID: 0}
+  subtitlesText: {fileID: 0}
+  tutorial:
+  - {fileID: 8300000, guid: b6e9199f6a455704d80612c6b0339768, type: 3}
+  - {fileID: 8300000, guid: 13854c933aa19b042883829135e78ffb, type: 3}
+  - {fileID: 8300000, guid: 608f7542ecbcc2f4384bb3fd0a75f59f, type: 3}
+  - {fileID: 8300000, guid: 1003d4dd6b5c016419178d8639977819, type: 3}
+  - {fileID: 8300000, guid: 24b7897cd71d08040a2c89c763ba7af4, type: 3}
+  - {fileID: 8300000, guid: 4ed5d1522edf0f044b5827da55723343, type: 3}
+  - {fileID: 8300000, guid: 0dadf521f7047ec4f8652f916972e19f, type: 3}
+  - {fileID: 8300000, guid: f641ecc4ce8617440b8dee4fd33a5208, type: 3}
+  playerAudioSource: {fileID: 0}
+  musicBG: {fileID: 0}
+  timeBetweenLines: 1
+  playIntro: 0
