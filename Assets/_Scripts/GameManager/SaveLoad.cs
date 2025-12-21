@@ -57,10 +57,10 @@ public class SaveLoad : MonoBehaviour
 		data.powerAmmountSaved = StationManager.Instance.PowerStorage.amount;
 		data.oxygenLvlSaved = StationManager.Instance.OxygenStorage.level;
 		data.oxygenAmmountSaved = StationManager.Instance.OxygenStorage.amount;
-		data.workstationLvlSaved = StationManager.Instance.WorkStation.level;
+		data.workstationLvlSaved = StationManager.Instance.WorkStation.Level;
 		data.balanceSaved = StationManager.Instance.Points;
 		data.maskLvlSaved = player.GetComponent<Mask>().level;
-		data.oxygenBaloonLvlSaved = player.GetComponent<PlayerOxygen>().level;
+		data.oxygenBaloonLvlSaved = player.GetComponent<PlayerOxygen>().Level;
 		data.playerHealthSaved = player.GetComponent<PlayerHealth>().currentHealth;
 		data.playerMovementSaved = player.GetComponent<PlayerMovement>().movementSpeed;
 		data.playerMouseSpeedSaved = player.GetComponent<PlayerMovement>().cameraSpeed;
@@ -91,10 +91,10 @@ public class SaveLoad : MonoBehaviour
 		StationManager.Instance.PowerStorage.amount = _data.powerAmmountSaved;
 		StationManager.Instance.OxygenStorage.level = _data.oxygenLvlSaved;
 		StationManager.Instance.OxygenStorage.amount = _data.oxygenAmmountSaved;
-		StationManager.Instance.WorkStation.level = _data.workstationLvlSaved;
+		StationManager.Instance.WorkStation.SetLevel(_data.workstationLvlSaved);
 		StationManager.Instance.Points = _data.balanceSaved;
 		player.GetComponent<Mask>().level = _data.maskLvlSaved;
-		player.GetComponent<PlayerOxygen>().level = _data.oxygenBaloonLvlSaved;
+		player.GetComponent<PlayerOxygen>().SetLevel(_data.oxygenBaloonLvlSaved);
 		player.GetComponent<PlayerHealth>().currentHealth = _data.playerHealthSaved;
 		//player settings
 		player.GetComponent<PlayerMovement>().movementSpeed = _data.playerMovementSaved;

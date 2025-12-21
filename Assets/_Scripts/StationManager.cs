@@ -217,10 +217,10 @@ public class StationManager : Singleton<StationManager>
             oxygenTextUI.text = (oxygenStorage.amountPerc * 100).ToString("0") + "%";
         
         if (workstationLvlMain != null && workStation != null)
-            workstationLvlMain.text = "Work Station Lvl: " + workStation.level;
+            workstationLvlMain.text = "Work Station Lvl: " + workStation.Level;
         
         if (workstationCurrproductionMain != null && workStation != null)
-            workstationCurrproductionMain.text = "Current Production Rate: " + workStation.addPoints.ToString("0") + "$/sec";
+            workstationCurrproductionMain.text = "Current Production Rate: " + workStation.AddPoints.ToString("0") + "$/sec";
     }
 
     public void StoreUI()
@@ -258,13 +258,13 @@ public class StationManager : Singleton<StationManager>
         if (workStation != null)
         {
             if (workstationLvl != null)
-                workstationLvl.text = "Work Station\nLvl: " + workStation.level;
+                workstationLvl.text = "Work Station\nLvl: " + workStation.Level;
             if (workStationUpgradeCost != null)
-                workStationUpgradeCost.text = "Cost: " + workStation.upgradeCost.ToString("0") + "$";
+                workStationUpgradeCost.text = "Cost: " + workStation.UpgradeCost.ToString("0") + "$";
             if (workstationCurrproduction != null)
-                workstationCurrproduction.text = "Production: " + workStation.addPoints.ToString("0") + "$/sec";
+                workstationCurrproduction.text = "Production: " + workStation.AddPoints.ToString("0") + "$/sec";
             if (workstationNextLvlproduction != null)
-                workstationNextLvlproduction.text = "Upgrade Production: " + (workStation.addPoints * workStation.upgradePerc).ToString("0") + "$/sec";
+                workstationNextLvlproduction.text = "Upgrade Production: " + (workStation.AddPoints * workStation.UpgradePerc).ToString("0") + "$/sec";
         }
 
         // Update player gear info
@@ -284,9 +284,9 @@ public class StationManager : Singleton<StationManager>
         if (playerOxygen != null)
         {
             if (oxygenBaloonCost != null)
-                oxygenBaloonCost.text = "Cost: " + playerOxygen.upgradeCost + "$";
+                oxygenBaloonCost.text = "Cost: " + playerOxygen.UpgradeCost + "$";
             if (oxygenLvl != null)
-                oxygenLvl.text = "Oxygen Baloon\nLvl" + playerOxygen.level;
+                oxygenLvl.text = "Oxygen Baloon\nLvl" + playerOxygen.Level;
         }
     }
 
@@ -320,8 +320,33 @@ public class StationManager : Singleton<StationManager>
         }
     }
 
+    private IEnumerator ButtonPress(Transform button)
+    {
+        Vector3 original = button.localScale;
+        Vector3 pressed = original * 0.9f;
+        
+        // Press
+        for (float t = 0; t < 0.1f; t += Time.deltaTime)
+        {
+            button.localScale = Vector3.Lerp(original, pressed, t / 0.1f);
+            yield return null;
+        }
+        
+        // Release
+        for (float t = 0; t < 0.1f; t += Time.deltaTime)
+        {
+            button.localScale = Vector3.Lerp(pressed, original, t / 0.1f);
+            yield return null;
+        }
+        
+        button.localScale = original;
+    }
+
     public void PowerBtn()
     {
+        if (StartBtnUI != null)
+            StartCoroutine(ButtonPress(StartBtnUI.transform));
+
         if (CanWork())
         {
             if (workstationAudioSource != null)
@@ -392,10 +417,10 @@ public class StationManager : Singleton<StationManager>
 
     public void UpgradeWorkStation()
     {
-        if (workStation != null && points >= workStation.upgradeCost)
+        if (workStation != null && points >= workStation.UpgradeCost)
         {
             workStation.UpgradeWorkStation();
-            points -= workStation.upgradeCost;
+            points -= workStation.UpgradeCost;
             if (playerAudioSource != null && upgradeBuilding != null)
                 playerAudioSource.PlayOneShot(upgradeBuilding);
         }
@@ -424,10 +449,10 @@ public class StationManager : Singleton<StationManager>
 
     public void UpgradeBaloon()
     {
-        if (playerOxygen != null && points >= playerOxygen.upgradeCost)
+        if (playerOxygen != null && points >= playerOxygen.UpgradeCost)
         {
             playerOxygen.UpgardeMaxCapacity();
-            points -= playerOxygen.upgradeCost;
+            points -= playerOxygen.UpgradeCost;
             if (playerAudioSource != null && upgradeGear != null)
                 playerAudioSource.PlayOneShot(upgradeGear);
         }

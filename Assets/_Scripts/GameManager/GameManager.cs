@@ -145,9 +145,9 @@ public class GameManager : MonoBehaviour
 	{
 		PlayerPrefs.SetInt("powerStorageLvl", powerStorage.level);
 		PlayerPrefs.SetInt("oxygenStorageLvl", oxygenStorage.level);
-		PlayerPrefs.SetInt("workStationLvl", workStation.level);
+		PlayerPrefs.SetInt("workStationLvl", workStation.Level);
 		PlayerPrefs.SetInt("maskLvl", mask.level);
-		PlayerPrefs.SetInt("oxygenBalloonLvl", playerOxygen.level);
+		PlayerPrefs.SetInt("oxygenBalloonLvl", playerOxygen.Level);
 		PlayerPrefs.SetInt("balanceText", Mathf.RoundToInt(StationManager.Instance.Points));
 	}
 

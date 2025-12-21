@@ -83,8 +83,7 @@ public class RoomController : MonoBehaviour
         UpdateAlertLights();
         UpdateUI();
         UpdateTimer();
-        
-        // Update wasInRoom for next frame
+        FlashTimerWhenLow();
         wasInRoom = isInRoom;
     }
 
@@ -106,6 +105,23 @@ public class RoomController : MonoBehaviour
             isInRoom = false;
             currentTimer = 0;
             ResetVoiceAlerts();
+        }
+    }
+
+    void FlashTimerWhenLow()
+    {
+        if (timerText == null || !isInRoom) return;
+        
+        if (currentTimer <= 10)
+        {
+            // Flash faster as time runs out
+            float speed = currentTimer < 5 ? 8f : 4f;
+            float flash = Mathf.PingPong(Time.time * speed, 1);
+            timerText.color = Color.Lerp(Color.white, Color.red, flash);
+        }
+        else
+        {
+            timerText.color = Color.white;
         }
     }
 
@@ -241,7 +257,7 @@ public class RoomController : MonoBehaviour
     {
         if (myTank == null || workStation == null) return false;
 
-        bool hasEnough = myTank.amount >= myTank.reqAmount * workStation.level;
+        bool hasEnough = myTank.amount >= myTank.reqAmount * workStation.Level;
 
         if (hasEnough)
         {
@@ -266,15 +282,34 @@ public class RoomController : MonoBehaviour
     public void FillStorage()
     {
         if (myTank == null) return;
-
-        myTank.amount = myTank.maxAmount;
         
+        // Start animation
+        StartCoroutine(AnimateFill());
+        
+        // Audio & events
         if (playerAudioSource != null && fillStorageSFX != null)
             playerAudioSource.PlayOneShot(fillStorageSFX);
-
-        // Trigger event to notify StationManager (using trigger methods)
+        
         GameEvents.TriggerResourceFilled(roomType);
         GameEvents.TriggerResourceChanged();
+    }
+
+    private IEnumerator AnimateFill()
+    {
+        float start = myTank.amount;
+        float target = myTank.maxAmount;
+        float duration = 0.5f;
+        float elapsed = 0;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0, 1, elapsed / duration);
+            myTank.amount = Mathf.Lerp(start, target, t);
+            yield return null;
+        }
+        
+        myTank.amount = target;
     }
 
     // === COMPATIBILITY METHODS FOR OLD SCRIPTS ===

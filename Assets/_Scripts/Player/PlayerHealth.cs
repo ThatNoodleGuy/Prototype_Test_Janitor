@@ -30,7 +30,7 @@ public class PlayerHealth : MonoBehaviour
     {
         missingHealth = healthAmount - currentHealth;
 
-        if (playerOxygen.currentOxygen <= 0)
+        if (playerOxygen.CurrentOxygen <= 0)
         {
             LooseHP();
         }
