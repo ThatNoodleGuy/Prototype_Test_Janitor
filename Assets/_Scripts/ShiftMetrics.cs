@@ -3,64 +3,74 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Tracks player performance metrics during a single shift.
-/// Core to the evaluation-based gameplay loop.
+/// Tracks all metrics during a single shift for AI evaluation
 /// </summary>
 [System.Serializable]
 public class ShiftMetrics
 {
     [Header("Task Performance")]
-    public int tasksAttempted = 0;      // Rooms entered
-    public int tasksCompleted = 0;      // Storages filled
-    public int tasksAbandoned = 0;      // Left without completing
+    public int tasksAttempted = 0;
+    public int tasksCompleted = 0;
+    public int tasksAbandoned = 0;
     
     [Header("Resource Management")]
-    public float resourcesConsumed = 0; // Total resources used
-    public float moneyEarned = 0;       // Total money made
+    public float resourcesConsumed = 0f;
+    public float moneyEarned = 0f;
     
     [Header("Time Tracking")]
-    public float shiftStartTime = 0;
-    public float shiftEndTime = 0;
+    public float shiftStartTime = 0f;
+    public float shiftEndTime = 0f;
     
-    [Header("Risk & Safety")]
-    public int contaminationEvents = 0; // Timer hit 0
-    public float healthLost = 0;        // Damage taken
+    [Header("Safety & Risk")]
+    public int contaminationEvents = 0;
+    public float healthLost = 0f;
+    public int timerExpirations = 0;  // Times timer hit 0
     
-    // Private tracking
-    private HashSet<RoomController.RoomType> attemptedRooms = new HashSet<RoomController.RoomType>();
-    private HashSet<RoomController.RoomType> completedRooms = new HashSet<RoomController.RoomType>();
-
+    // Internal tracking
+    private HashSet<RoomController.RoomType> roomsEntered = new HashSet<RoomController.RoomType>();
+    private HashSet<RoomController.RoomType> roomsCompleted = new HashSet<RoomController.RoomType>();
+    private Dictionary<RoomController.RoomType, float> roomTimeSpent = new Dictionary<RoomController.RoomType, float>();
+    private Dictionary<RoomController.RoomType, float> roomEntryTime = new Dictionary<RoomController.RoomType, float>();
+    
     /// <summary>
     /// Initialize a new shift
     /// </summary>
     public void StartShift()
     {
         shiftStartTime = Time.time;
-        shiftEndTime = 0;
+        shiftEndTime = 0f;
         
         tasksAttempted = 0;
         tasksCompleted = 0;
         tasksAbandoned = 0;
         
-        resourcesConsumed = 0;
-        moneyEarned = 0;
+        resourcesConsumed = 0f;
+        moneyEarned = 0f;
         
         contaminationEvents = 0;
-        healthLost = 0;
+        healthLost = 0f;
+        timerExpirations = 0;
         
-        attemptedRooms.Clear();
-        completedRooms.Clear();
+        roomsEntered.Clear();
+        roomsCompleted.Clear();
+        roomTimeSpent.Clear();
+        roomEntryTime.Clear();
         
-        Debug.Log("[ShiftMetrics] Shift started at " + shiftStartTime);
+        Debug.Log("[ShiftMetrics] Shift initialized");
     }
     
     /// <summary>
-    /// Finalize shift duration
+    /// Finalize shift timing
     /// </summary>
     public void EndShift()
     {
         shiftEndTime = Time.time;
-        Debug.Log("[ShiftMetrics] Shift ended. Duration: " + GetShiftDuration() + "s");
+        
+        // Calculate final abandoned count
+        // (rooms entered but not completed)
+        tasksAbandoned = roomsEntered.Count - roomsCompleted.Count;
+        
+        Debug.Log($"[ShiftMetrics] Shift ended: {GetShiftDuration():F1}s, Score: {GetCompletionRate():P0}");
     }
     
     /// <summary>
@@ -68,47 +78,63 @@ public class ShiftMetrics
     /// </summary>
     public void RecordRoomEntered(RoomController.RoomType roomType)
     {
-        if (!attemptedRooms.Contains(roomType))
+        if (!roomsEntered.Contains(roomType))
         {
-            attemptedRooms.Add(roomType);
+            roomsEntered.Add(roomType);
+            roomEntryTime[roomType] = Time.time;
             tasksAttempted++;
-            Debug.Log($"[ShiftMetrics] Task attempted: {roomType}");
+            
+            Debug.Log($"[ShiftMetrics] Room entered: {roomType} (Total: {tasksAttempted})");
         }
     }
     
     /// <summary>
-    /// Record when player completes a room (fills storage)
+    /// Record when player completes a room
     /// </summary>
     public void RecordRoomCompleted(RoomController.RoomType roomType)
     {
-        if (!completedRooms.Contains(roomType))
+        if (!roomsCompleted.Contains(roomType))
         {
-            completedRooms.Add(roomType);
+            roomsCompleted.Add(roomType);
             tasksCompleted++;
-            Debug.Log($"[ShiftMetrics] Task completed: {roomType}");
+            
+            // Calculate time spent in this room
+            if (roomEntryTime.ContainsKey(roomType))
+            {
+                float timeSpent = Time.time - roomEntryTime[roomType];
+                roomTimeSpent[roomType] = timeSpent;
+            }
+            
+            Debug.Log($"[ShiftMetrics] Room completed: {roomType} (Total: {tasksCompleted})");
         }
     }
     
     /// <summary>
-    /// Record when player abandons a room
+    /// Record when player exits room without completing
     /// </summary>
-    public void RecordRoomAbandoned(RoomController.RoomType roomType)
+    public void RecordRoomExited(RoomController.RoomType roomType, bool wasCompleted)
     {
-        // Only count as abandoned if it was attempted but not completed
-        if (attemptedRooms.Contains(roomType) && !completedRooms.Contains(roomType))
+        if (!wasCompleted && roomsEntered.Contains(roomType) && !roomsCompleted.Contains(roomType))
         {
-            tasksAbandoned++;
-            Debug.Log($"[ShiftMetrics] Task abandoned: {roomType}");
+            // Calculate time spent before abandoning
+            if (roomEntryTime.ContainsKey(roomType))
+            {
+                float timeSpent = Time.time - roomEntryTime[roomType];
+                roomTimeSpent[roomType] = timeSpent;
+            }
+            
+            Debug.Log($"[ShiftMetrics] Room abandoned: {roomType}");
         }
     }
     
     /// <summary>
-    /// Record contamination event (timer hit 0 while player in room)
+    /// Record contamination event (timer reached 0)
     /// </summary>
-    public void RecordContaminationEvent()
+    public void RecordContaminationEvent(RoomController.RoomType roomType)
     {
         contaminationEvents++;
-        Debug.Log($"[ShiftMetrics] Contamination event! Total: {contaminationEvents}");
+        timerExpirations++;
+        Debug.Log($"[ShiftMetrics] Contamination event in {roomType}! Total: {contaminationEvents}");
     }
     
     /// <summary>
@@ -120,15 +146,16 @@ public class ShiftMetrics
     }
     
     /// <summary>
-    /// Record resources consumed
+    /// Record resources consumed (power + oxygen)
     /// </summary>
-    public void RecordResourcesUsed(float amount)
+    public void RecordResourcesConsumed(float power, float oxygen)
     {
-        resourcesConsumed += amount;
+        float total = power + oxygen;
+        resourcesConsumed += total;
     }
     
     /// <summary>
-    /// Record money earned
+    /// Record money earned from work
     /// </summary>
     public void RecordMoneyEarned(float amount)
     {
@@ -145,7 +172,7 @@ public class ShiftMetrics
         if (shiftEndTime > 0)
             return shiftEndTime - shiftStartTime;
         else
-            return Time.time - shiftStartTime;  // Ongoing shift
+            return Time.time - shiftStartTime;  // Ongoing
     }
     
     /// <summary>
@@ -153,7 +180,7 @@ public class ShiftMetrics
     /// </summary>
     public float GetCompletionRate()
     {
-        if (tasksAttempted <= 0) return 0;
+        if (tasksAttempted <= 0) return 0f;
         return (float)tasksCompleted / tasksAttempted;
     }
     
@@ -162,75 +189,61 @@ public class ShiftMetrics
     /// </summary>
     public float GetAbandonmentRate()
     {
-        if (tasksAttempted <= 0) return 0;
+        if (tasksAttempted <= 0) return 0f;
         return (float)tasksAbandoned / tasksAttempted;
     }
     
     /// <summary>
-    /// Get resource efficiency (money earned per resource consumed)
+    /// Get resource efficiency ratio
     /// </summary>
-    public float GetEfficiency()
+    public float GetEfficiencyRatio()
     {
-        if (resourcesConsumed <= 0) return 0;
-        return (moneyEarned / resourcesConsumed) * 100f;
+        if (resourcesConsumed <= 0) return 0f;
+        return moneyEarned / resourcesConsumed;
     }
     
     /// <summary>
-    /// Get performance classification label
-    /// This is the AI's judgment of the player's work
+    /// Get average time per completed task
     /// </summary>
-    public string GetClassification()
+    public float GetAverageTaskTime()
     {
-        float completionRate = GetCompletionRate();
-        float efficiency = GetEfficiency();
+        if (tasksCompleted <= 0) return 0f;
         
-        // Perfect performance
-        if (completionRate >= 1.0f && efficiency >= 300f && contaminationEvents == 0)
-            return "EXEMPLARY OPERATOR";
+        float totalTime = 0f;
+        foreach (var time in roomTimeSpent.Values)
+        {
+            totalTime += time;
+        }
         
-        // High performance
-        if (completionRate >= 0.9f && efficiency >= 250f)
-            return "EFFICIENT OPERATOR";
-        
-        // Good performance
-        if (completionRate >= 0.7f && efficiency >= 200f)
-            return "ADEQUATE ASSET";
-        
-        // Acceptable performance
-        if (completionRate >= 0.5f && efficiency >= 150f)
-            return "ACCEPTABLE PERFORMANCE";
-        
-        // Below standard
-        if (completionRate >= 0.3f)
-            return "SUBOPTIMAL BEHAVIOR";
-        
-        // Very poor
-        if (tasksCompleted > 0)
-            return "INEFFICIENT PROCESS";
-        
-        // Did nothing
-        return "UNPRODUCTIVE SHIFT";
+        return totalTime / tasksCompleted;
     }
     
     /// <summary>
-    /// Get a detailed evaluation message from the AI
+    /// Check if shift was perfect (no violations)
     /// </summary>
-    public string GetEvaluationMessage()
+    public bool IsPerfectShift()
     {
-        string classification = GetClassification();
-        float completionRate = GetCompletionRate() * 100f;
+        return contaminationEvents == 0 && 
+               healthLost == 0 && 
+               tasksAbandoned == 0 &&
+               GetCompletionRate() == 1.0f;
+    }
+    
+    /// <summary>
+    /// Get detailed summary string
+    /// </summary>
+    public string GetSummary()
+    {
+        string summary = "=== SHIFT SUMMARY ===\n";
+        summary += $"Duration: {GetShiftDuration():F1}s\n";
+        summary += $"Tasks: {tasksCompleted}/{tasksAttempted} completed\n";
+        summary += $"Abandoned: {tasksAbandoned}\n";
+        summary += $"Resources: {resourcesConsumed:F0} consumed\n";
+        summary += $"Revenue: ${moneyEarned:F0}\n";
+        summary += $"Efficiency: {GetEfficiencyRatio():F2}:1\n";
+        summary += $"Safety: {contaminationEvents} violations, {healthLost:F0} damage\n";
+        summary += $"Perfect: {IsPerfectShift()}\n";
         
-        // AI speaks in corporate, emotionless language
-        string message = $"Performance classification: {classification}\n\n";
-        message += $"Task completion rate: {completionRate:0}%\n";
-        message += $"Resource efficiency: {GetEfficiency():0}%\n";
-        
-        if (contaminationEvents > 0)
-            message += $"\nWarning: {contaminationEvents} safety protocols violated.";
-        
-        if (tasksAbandoned > 0)
-            message += $"\nNote: {tasksAbandoned} tasks initiated but not completed.";
-        
-        return message;
+        return summary;
     }
 }

@@ -3,13 +3,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
+/// <summary>
+/// Central station management system with shift-based gameplay
+/// Manages resources, upgrades, and shift lifecycle
+/// </summary>
 public class StationManager : Singleton<StationManager>
 {
     [Header("Resources")]
     [SerializeField] private float powerAmount;
     [SerializeField] private float oxygenAmount;
-    [SerializeField] private float points;
+    [SerializeField] private float points = 500f;  // Starting money
 
     [Header("Storage References")]
     [SerializeField] private Storage powerStorage;
@@ -18,49 +23,64 @@ public class StationManager : Singleton<StationManager>
     [Header("Station References")]
     [SerializeField] private WorkStation workStation;
     [SerializeField] private RoomController[] rooms;
+    [SerializeField] private AIManager aiManager;
 
-    [Header("Audio")]
-    [SerializeField] private AudioSource workstationAudioSource;
-    [SerializeField] private AudioSource playerAudioSource;
-    [SerializeField] private AudioClip workstationOff;
-    [SerializeField] private AudioClip upgradeBuilding;
-    [SerializeField] private AudioClip upgradeGear;
-    [SerializeField] private AudioClip upgradeFail;
-    [SerializeField] private AudioClip clickUI;
+    // ===== SHIFT SYSTEM =====
+    [Header("Shift System")]
+    [SerializeField] private bool shiftInProgress = false;
+    [SerializeField] private float shiftDuration = 600f;  // 10 minutes
+    [SerializeField] private float shiftTimer = 0f;
+    [SerializeField] private ShiftMetrics currentShift;
+    
+    [Header("Performance Review UI")]
+    [SerializeField] private GameObject performanceReviewPanel;
+    [SerializeField] private TextMeshProUGUI reviewTitleText;
+    [SerializeField] private TextMeshProUGUI classificationText;
+    [SerializeField] private TextMeshProUGUI evaluationMessageText;
+    [SerializeField] private TextMeshProUGUI observationsText;
+    [SerializeField] private TextMeshProUGUI aiStatusText;
+    [SerializeField] private Button continueButton;
+    
+    [Header("Shift UI")]
+    [SerializeField] private TextMeshProUGUI shiftTimerText;
+    [SerializeField] private Button endShiftButton;
+    // ===== END SHIFT SYSTEM =====
 
     [Header("Monitor UI (Main Screen)")]
     [SerializeField] private Button viewBtn;
     [SerializeField] private GameObject homeUI;
     [SerializeField] private GameObject storeUI;
-    [SerializeField] private Button StartBtnUI;
+    [SerializeField] private Button startBtnUI;  // Changed from StartBtnUI
     [SerializeField] private GameObject workingIcon;
-    [SerializeField] private Text scoreUI;
-    [SerializeField] private Text powerTextUI;
-    [SerializeField] private Text oxygenTextUI;
-    [SerializeField] private Text workstationLvlMain;
-    [SerializeField] private Text workstationCurrproductionMain;
+    [SerializeField] private TextMeshProUGUI scoreUI;
+    [SerializeField] private TextMeshProUGUI powerTextUI;
+    [SerializeField] private TextMeshProUGUI oxygenTextUI;
+    [SerializeField] private TextMeshProUGUI workstationLvlMain;
+    [SerializeField] private TextMeshProUGUI workstationCurrproductionMain;
+    [SerializeField] private Slider powerSlider;
+    [SerializeField] private Slider oxygenSlider;
 
-    [Header("Store UI: SpaceShip")]
-    [SerializeField] private Text powerStorageLvl;
-    [SerializeField] private Text powerCurrAmount;
-    [SerializeField] private Text powerNextLvlAmount;
-    [SerializeField] private Text powerUpgradeCost;
-    [SerializeField] private Text oxygenStorageLvl;
-    [SerializeField] private Text oxygenCurrAmount;
-    [SerializeField] private Text oxygenNextLvlAmount;
-    [SerializeField] private Text oxygenUpgradeCost;
-    [SerializeField] private Text workstationLvl;
-    [SerializeField] private Text workstationCurrproduction;
-    [SerializeField] private Text workstationNextLvlproduction;
-    [SerializeField] private Text workStationUpgradeCost;
+    [Header("Store UI: Station")]
+    [SerializeField] private TextMeshProUGUI powerStorageLvl;
+    [SerializeField] private TextMeshProUGUI powerCurrAmount;
+    [SerializeField] private TextMeshProUGUI powerNextLvlAmount;
+    [SerializeField] private TextMeshProUGUI powerUpgradeCost;
+    [SerializeField] private TextMeshProUGUI oxygenStorageLvl;
+    [SerializeField] private TextMeshProUGUI oxygenCurrAmount;
+    [SerializeField] private TextMeshProUGUI oxygenNextLvlAmount;
+    [SerializeField] private TextMeshProUGUI oxygenUpgradeCost;
+    [SerializeField] private TextMeshProUGUI workstationLvl;
+    [SerializeField] private TextMeshProUGUI workstationCurrproduction;
+    [SerializeField] private TextMeshProUGUI workstationNextLvlproduction;
+    [SerializeField] private TextMeshProUGUI workStationUpgradeCost;
 
     [Header("Store UI: Player Gear")]
-    [SerializeField] private Text healCostText;
-    [SerializeField] private Text maskLvl;
-    [SerializeField] private Text maskCostText;
-    [SerializeField] private Text timeInRooms;
-    [SerializeField] private Text oxygenBaloonCost;
-    [SerializeField] private Text oxygenLvl;
+    [SerializeField] private TextMeshProUGUI healCostText;
+    [SerializeField] private TextMeshProUGUI maskLvl;
+    [SerializeField] private TextMeshProUGUI maskCostText;
+    [SerializeField] private TextMeshProUGUI timeInRooms;
+    [SerializeField] private TextMeshProUGUI oxygenBaloonCost;
+    [SerializeField] private TextMeshProUGUI oxygenLvl;
 
     // State tracking
     [SerializeField] private bool isHomeScreen = true;
@@ -71,66 +91,32 @@ public class StationManager : Singleton<StationManager>
     private PlayerOxygen playerOxygen;
     private PlayerHealth playerHealth;
 
-    // ===== PUBLIC PROPERTIES (GETTERS/SETTERS) =====
+    // ===== PUBLIC PROPERTIES =====
     
-    // Resource Properties
-    public float PowerAmount 
-    { 
-        get => powerAmount; 
-        set => powerAmount = value; 
-    }
+    public float PowerAmount { get => powerAmount; set => powerAmount = value; }
+    public float OxygenAmount { get => oxygenAmount; set => oxygenAmount = value; }
+    public float Points { get => points; set => points = value; }
     
-    public float OxygenAmount 
-    { 
-        get => oxygenAmount; 
-        set => oxygenAmount = value; 
-    }
-    
-    public float Points 
-    { 
-        get => points; 
-        set 
-        {
-            points = value;
-            // Optional: Add validation or events here
-            // e.g., points = Mathf.Max(0, value);
-        }
-    }
-
-    // Storage References (Read-only - only getters)
     public Storage PowerStorage => powerStorage;
     public Storage OxygenStorage => oxygenStorage;
-
-    // Station References
     public WorkStation WorkStation => workStation;
     public RoomController[] Rooms => rooms;
-
-    // Audio References (Read-only)
-    public AudioSource WorkstationAudioSource => workstationAudioSource;
-    public AudioSource PlayerAudioSource => playerAudioSource;
-
-    // State Properties
-    public bool IsHomeScreen 
-    { 
-        get => isHomeScreen; 
-        set => isHomeScreen = value; 
-    }
-
-    public bool HasPlayedWorkstationOff 
-    { 
-        get => hasPlayedWorkstationOff; 
-        set => hasPlayedWorkstationOff = value; 
-    }
-
-    // Player References (Read-only)
+    
+    public bool IsHomeScreen { get => isHomeScreen; set => isHomeScreen = value; }
+    public bool HasPlayedWorkstationOff { get => hasPlayedWorkstationOff; set => hasPlayedWorkstationOff = value; }
+    
     public Mask Mask => mask;
     public PlayerOxygen PlayerOxygen => playerOxygen;
     public PlayerHealth PlayerHealth => playerHealth;
-
-    // ===== END PROPERTIES =====
+    
+    // Shift system properties
+    public bool ShiftInProgress => shiftInProgress;
+    public ShiftMetrics CurrentShift => currentShift;
+    public AIManager AIManager => aiManager;
 
     void Start()
     {
+        // Find player references
         #if UNITY_6000_0_OR_NEWER
             playerOxygen = FindAnyObjectByType<PlayerOxygen>();
             playerHealth = FindAnyObjectByType<PlayerHealth>();
@@ -141,15 +127,42 @@ public class StationManager : Singleton<StationManager>
             mask = FindObjectOfType<Mask>();
         #endif
 
+        // Find AI Manager if not assigned
+        if (aiManager == null)
+        {
+            #if UNITY_6000_0_OR_NEWER
+                aiManager = FindAnyObjectByType<AIManager>();
+            #else
+                aiManager = FindObjectOfType<AIManager>();
+            #endif
+            
+            if (aiManager == null)
+            {
+                Debug.LogWarning("No AIManager found! Creating one...");
+                GameObject aiObj = new GameObject("AIManager");
+                aiManager = aiObj.AddComponent<AIManager>();
+            }
+        }
+
         // Subscribe to events
         GameEvents.OnResourceChanged += CheckWorkStatus;
+        
+        // Initialize shift metrics
+        currentShift = new ShiftMetrics();
+        
+        // Hide performance review initially
+        if (performanceReviewPanel != null)
+            performanceReviewPanel.SetActive(false);
+        
+        // Hide end shift button initially
+        if (endShiftButton != null)
+            endShiftButton.gameObject.SetActive(false);
+
     }
 
     protected override void OnDestroy()
     {
         base.OnDestroy();
-        
-        // Unsubscribe from events
         GameEvents.OnResourceChanged -= CheckWorkStatus;
     }
 
@@ -168,129 +181,229 @@ public class StationManager : Singleton<StationManager>
 
         if (isHomeScreen)
         {
-            HomeUI();
+            UpdateHomeUI();
         }
         else
         {
-            StoreUI();
+            UpdateStoreUI();
         }
 
-        // Stop machines if can't work
+        // Check work status
         if (!CanWork())
         {
-            CancelInvoke(nameof(StartMining));
-            if (StartBtnUI != null)
-                StartBtnUI.interactable = true;
-            if (workingIcon != null)
-                workingIcon.SetActive(false);
-
-            if (!hasPlayedWorkstationOff && workstationOff != null && playerAudioSource != null)
-                playerAudioSource.PlayOneShot(workstationOff);
-            hasPlayedWorkstationOff = true;
+            StopWork();
+        }
+        
+        // Update shift timer
+        if (shiftInProgress)
+        {
+            UpdateShiftTimer();
+        }
+    }
+    
+    // ===== SHIFT SYSTEM METHODS =====
+    
+    /// <summary>
+    /// Start a new shift (Player accepts shift)
+    /// THIS IS THE METHOD FOR THE START BUTTON!
+    /// </summary>
+    public void StartShift()
+    {
+        if (shiftInProgress)
+        {
+            Debug.LogWarning("[StationManager] Shift already in progress!");
+            return;
+        }
+        
+        // Initialize shift
+        currentShift.StartShift();
+        shiftInProgress = true;
+        shiftTimer = 0f;
+        
+        // UI updates
+        if (startBtnUI != null)
+        {
+            startBtnUI.interactable = false;
+            // Change button text if it has text component
+            Text btnText = startBtnUI.GetComponentInChildren<Text>();
+            if (btnText != null)
+                btnText.text = "Shift In Progress";
+        }
+        
+        if (endShiftButton != null)
+            endShiftButton.gameObject.SetActive(true);
+        
+        Debug.Log("=== SHIFT STARTED ===");
+    }
+    
+    /// <summary>
+    /// End current shift and show performance review
+    /// </summary>
+    public void EndShift()
+    {
+        if (!shiftInProgress)
+        {
+            Debug.LogWarning("[StationManager] No shift in progress!");
+            return;
+        }
+        
+        // Finalize shift
+        currentShift.EndShift();
+        shiftInProgress = false;
+        
+        // Stop any ongoing work
+        StopWork();
+        
+        // Hide end shift button
+        if (endShiftButton != null)
+            endShiftButton.gameObject.SetActive(false);
+        
+        // Get AI evaluation
+        ShiftEvaluation evaluation = aiManager.EvaluateShift(currentShift);
+        
+        // Show performance review
+        ShowPerformanceReview(evaluation);
+        
+        // Increment AI progression
+        aiManager.IncrementShiftProgression();
+        
+        Debug.Log($"=== SHIFT ENDED === Classification: {evaluation.classification}");
+        Debug.Log(currentShift.GetSummary());
+    }
+    
+    /// <summary>
+    /// Update shift timer display
+    /// </summary>
+    void UpdateShiftTimer()
+    {
+        shiftTimer += Time.deltaTime;
+        
+        // Auto-end shift when time expires
+        if (shiftTimer >= shiftDuration)
+        {
+            EndShift();
+            return;
+        }
+        
+        // Update timer display
+        if (shiftTimerText != null)
+        {
+            float remaining = shiftDuration - shiftTimer;
+            int minutes = Mathf.FloorToInt(remaining / 60f);
+            int seconds = Mathf.FloorToInt(remaining % 60f);
+            shiftTimerText.text = $"Shift Time: {minutes:00}:{seconds:00}";
             
-            if (workstationAudioSource != null)
-                workstationAudioSource.enabled = false;
+            // Flash when low
+            if (remaining < 60f)
+            {
+                float flash = Mathf.PingPong(Time.time * 2f, 1f);
+                shiftTimerText.color = Color.Lerp(Color.white, Color.yellow, flash);
+            }
+            else
+            {
+                shiftTimerText.color = Color.white;
+            }
         }
-    }
-
-    // === UI METHODS ===
-
-    public void SwitchViews()
-    {
-        isHomeScreen = !isHomeScreen;
-        if (playerAudioSource != null && clickUI != null)
-            playerAudioSource.PlayOneShot(clickUI);
-    }
-
-    public void HomeUI()
-    {
-        if (homeUI != null)
-            homeUI.SetActive(true);
-        if (storeUI != null)
-            storeUI.SetActive(false);
-
-        // Update home screen UI
-        if (powerTextUI != null && powerStorage != null)
-            powerTextUI.text = (powerStorage.amountPerc * 100).ToString("0") + "%";
         
-        if (oxygenTextUI != null && oxygenStorage != null)
-            oxygenTextUI.text = (oxygenStorage.amountPerc * 100).ToString("0") + "%";
-        
-        if (workstationLvlMain != null && workStation != null)
-            workstationLvlMain.text = "Work Station Lvl: " + workStation.Level;
-        
-        if (workstationCurrproductionMain != null && workStation != null)
-            workstationCurrproductionMain.text = "Current Production Rate: " + workStation.AddPoints.ToString("0") + "$/sec";
+        // Update end shift button text
+        if (endShiftButton != null)
+        {
+            Text btnText = endShiftButton.GetComponentInChildren<Text>();
+            if (btnText != null)
+            {
+                float remaining = shiftDuration - shiftTimer;
+                int minutes = Mathf.FloorToInt(remaining / 60f);
+                int seconds = Mathf.FloorToInt(remaining % 60f);
+                btnText.text = $"End Shift ({minutes:00}:{seconds:00})";
+            }
+        }
     }
-
-    public void StoreUI()
+    
+    /// <summary>
+    /// Show performance review screen
+    /// </summary>
+    void ShowPerformanceReview(ShiftEvaluation evaluation)
     {
-        if (homeUI != null)
-            homeUI.SetActive(false);
-        if (storeUI != null)
-            storeUI.SetActive(true);
-
-        // Update storage info
-        if (powerStorage != null)
+        // Hide game UI
+        if (homeUI != null) homeUI.SetActive(false);
+        if (storeUI != null) storeUI.SetActive(false);
+        
+        // Show review panel
+        if (performanceReviewPanel != null)
+            performanceReviewPanel.SetActive(true);
+        
+        // Populate review UI
+        if (reviewTitleText != null)
+            reviewTitleText.text = "SHIFT PERFORMANCE REVIEW";
+        
+        if (classificationText != null)
         {
-            if (powerStorageLvl != null)
-                powerStorageLvl.text = "Power\nLvl: " + powerStorage.level;
-            if (powerUpgradeCost != null)
-                powerUpgradeCost.text = "Cost: " + powerStorage.upgradeCost.ToString("0") + "$";
-            if (powerCurrAmount != null)
-                powerCurrAmount.text = "Storage capacity: " + powerStorage.maxAmount.ToString("0");
-            if (powerNextLvlAmount != null)
-                powerNextLvlAmount.text = "Upgrade capacity: " + (powerStorage.maxAmount * powerStorage.upgradePerc * powerStorage.level).ToString("0");
+            classificationText.text = evaluation.classification;
+            // Color based on performance
+            if (evaluation.overallScore >= 0.85f)
+                classificationText.color = Color.green;
+            else if (evaluation.overallScore >= 0.70f)
+                classificationText.color = Color.yellow;
+            else
+                classificationText.color = Color.red;
         }
-
-        if (oxygenStorage != null)
+        
+        if (evaluationMessageText != null)
+            evaluationMessageText.text = evaluation.message;
+        
+        if (observationsText != null && evaluation.observations.Count > 0)
         {
-            if (oxygenStorageLvl != null)
-                oxygenStorageLvl.text = "O2\nLvl: " + oxygenStorage.level;
-            if (oxygenUpgradeCost != null)
-                oxygenUpgradeCost.text = "Cost: " + oxygenStorage.upgradeCost.ToString("0") + "$";
-            if (oxygenCurrAmount != null)
-                oxygenCurrAmount.text = "Storage capacity: " + oxygenStorage.maxAmount.ToString("0");
-            if (oxygenNextLvlAmount != null)
-                oxygenNextLvlAmount.text = "Upgrade capacity: " + (oxygenStorage.maxAmount * oxygenStorage.upgradePerc * oxygenStorage.level).ToString("0");
+            string obs = "\nOBSERVATIONS:\n";
+            foreach (string observation in evaluation.observations)
+            {
+                obs += $"• {observation}\n";
+            }
+            observationsText.text = obs;
         }
-
-        if (workStation != null)
+        else if (observationsText != null)
         {
-            if (workstationLvl != null)
-                workstationLvl.text = "Work Station\nLvl: " + workStation.Level;
-            if (workStationUpgradeCost != null)
-                workStationUpgradeCost.text = "Cost: " + workStation.UpgradeCost.ToString("0") + "$";
-            if (workstationCurrproduction != null)
-                workstationCurrproduction.text = "Production: " + workStation.AddPoints.ToString("0") + "$/sec";
-            if (workstationNextLvlproduction != null)
-                workstationNextLvlproduction.text = "Upgrade Production: " + (workStation.AddPoints * workStation.UpgradePerc).ToString("0") + "$/sec";
+            observationsText.text = "";
         }
-
-        // Update player gear info
-        if (playerHealth != null && healCostText != null)
-            healCostText.text = "Cost: " + playerHealth.missingHealth.ToString("0") + "$";
-
-        if (mask != null)
-        {
-            if (maskCostText != null)
-                maskCostText.text = "Cost: " + mask.upgradeCost.ToString("0");
-            if (timeInRooms != null)
-                timeInRooms.text = "Room time: " + mask.roomTimer.ToString() + "s";
-            if (maskLvl != null)
-                maskLvl.text = "Gas Mask\nLvl" + mask.level;
-        }
-
-        if (playerOxygen != null)
-        {
-            if (oxygenBaloonCost != null)
-                oxygenBaloonCost.text = "Cost: " + playerOxygen.UpgradeCost + "$";
-            if (oxygenLvl != null)
-                oxygenLvl.text = "Oxygen Baloon\nLvl" + playerOxygen.Level;
-        }
+        
+        if (aiStatusText != null)
+            aiStatusText.text = aiManager.GetAIStatus();
     }
+    
+    /// <summary>
+    /// Continue to next shift (Groundhog Day loop)
+    /// </summary>
+    public void ContinueToNextShift()
+    {
+        // Hide review
+        if (performanceReviewPanel != null)
+            performanceReviewPanel.SetActive(false);
+        
+        // Show home UI
+        if (homeUI != null) homeUI.SetActive(true);
+        
+        // Re-enable start button
+        if (startBtnUI != null)
+        {
+            startBtnUI.interactable = true;
+            Text btnText = startBtnUI.GetComponentInChildren<Text>();
+            if (btnText != null)
+                btnText.text = "Accept Shift";
+        }
+        
+        // Reset shift timer display
+        if (shiftTimerText != null)
+            shiftTimerText.text = "No Active Shift";
 
-    // === WORK MANAGEMENT ===
+        
+        // NOTE: Money and upgrades persist (player progression)
+        // NOTE: Resources should reset or be at current state
+        
+        Debug.Log("=== READY FOR NEXT SHIFT ===");
+    }
+    
+    // ===== END SHIFT SYSTEM METHODS =====
+
+    // ===== WORK MANAGEMENT =====
 
     public bool CanWork()
     {
@@ -313,55 +426,29 @@ public class StationManager : Singleton<StationManager>
 
     public void CheckWorkStatus()
     {
-        // This gets called by events when resources change
         if (!CanWork())
         {
-            StopWorking();
+            StopWork();
         }
     }
 
-    private IEnumerator ButtonPress(Transform button)
-    {
-        Vector3 original = button.localScale;
-        Vector3 pressed = original * 0.9f;
-        
-        // Press
-        for (float t = 0; t < 0.1f; t += Time.deltaTime)
-        {
-            button.localScale = Vector3.Lerp(original, pressed, t / 0.1f);
-            yield return null;
-        }
-        
-        // Release
-        for (float t = 0; t < 0.1f; t += Time.deltaTime)
-        {
-            button.localScale = Vector3.Lerp(pressed, original, t / 0.1f);
-            yield return null;
-        }
-        
-        button.localScale = original;
-    }
-
+    /// <summary>
+    /// Start the work station (Power button - starts production)
+    /// </summary>
     public void PowerBtn()
     {
-        if (StartBtnUI != null)
-            StartCoroutine(ButtonPress(StartBtnUI.transform));
-
         if (CanWork())
         {
-            if (workstationAudioSource != null)
-                workstationAudioSource.enabled = true;
             hasPlayedWorkstationOff = false;
             
             InvokeRepeating(nameof(StartMining), 1, 1);
             
-            if (StartBtnUI != null)
-                StartBtnUI.interactable = false;
+            if (startBtnUI != null)
+                startBtnUI.interactable = false;
             if (workingIcon != null)
                 workingIcon.SetActive(true);
         }
-        if (playerAudioSource != null && clickUI != null)
-            playerAudioSource.PlayOneShot(clickUI);
+    
     }
 
     public void StartMining()
@@ -370,16 +457,143 @@ public class StationManager : Singleton<StationManager>
             workStation.Work();
     }
 
-    public void StopWorking()
+    public void StopWork()
     {
         CancelInvoke(nameof(StartMining));
-        if (StartBtnUI != null)
-            StartBtnUI.interactable = true;
+        
+        if (startBtnUI != null && !shiftInProgress)
+            startBtnUI.interactable = true;
+            
         if (workingIcon != null)
             workingIcon.SetActive(false);
+
+        hasPlayedWorkstationOff = true;
+        
+    }
+    
+    /// <summary>
+    /// Add points to balance (called by WorkStation)
+    /// </summary>
+    public void AddPoints(float amount)
+    {
+        points += amount;
+        
+        // Track for shift metrics
+        if (shiftInProgress && currentShift != null)
+        {
+            currentShift.RecordMoneyEarned(amount);
+        }
     }
 
-    // === UPGRADE METHODS ===
+    // ===== UI METHODS =====
+
+    public void SwitchViews()
+    {
+        isHomeScreen = !isHomeScreen;
+    }
+
+    void UpdateHomeUI()
+    {
+        if (homeUI != null) homeUI.SetActive(true);
+        if (storeUI != null) storeUI.SetActive(false);
+
+        if (powerStorage != null)
+        {
+            float powerPerc = powerStorage.amountPerc * 100f;
+            
+            if (powerSlider != null)
+                powerSlider.value = powerPerc;  // Update slider!
+            
+            if (powerTextUI != null)
+                powerTextUI.text = powerPerc.ToString("0") + "%";
+        }
+
+        if (oxygenStorage != null)
+        {
+            float oxygenPerc = oxygenStorage.amountPerc * 100f;
+            
+            if (oxygenSlider != null)
+                oxygenSlider.value = oxygenPerc;  // Update slider!
+            
+            if (oxygenTextUI != null)
+                oxygenTextUI.text = oxygenPerc.ToString("0") + "%";
+        }
+
+        if (workstationLvlMain != null && workStation != null)
+            workstationLvlMain.text = "Work Station Lvl: " + workStation.Level;
+        
+        if (workstationCurrproductionMain != null && workStation != null)
+            workstationCurrproductionMain.text = "Production Rate: " + workStation.AddPoints.ToString("0") + "$/sec";
+    }
+
+    void UpdateStoreUI()
+    {
+        if (homeUI != null) homeUI.SetActive(false);
+        if (storeUI != null) storeUI.SetActive(true);
+
+        // Power Storage
+        if (powerStorage != null)
+        {
+            if (powerStorageLvl != null)
+                powerStorageLvl.text = "Power\nLvl: " + powerStorage.level;
+            if (powerUpgradeCost != null)
+                powerUpgradeCost.text = "Cost: " + powerStorage.upgradeCost.ToString("0") + "$";
+            if (powerCurrAmount != null)
+                powerCurrAmount.text = "Capacity: " + powerStorage.maxAmount.ToString("0");
+            if (powerNextLvlAmount != null)
+                powerNextLvlAmount.text = "Upgrade: " + (powerStorage.maxAmount * powerStorage.upgradePerc).ToString("0");
+        }
+
+        // Oxygen Storage
+        if (oxygenStorage != null)
+        {
+            if (oxygenStorageLvl != null)
+                oxygenStorageLvl.text = "O2\nLvl: " + oxygenStorage.level;
+            if (oxygenUpgradeCost != null)
+                oxygenUpgradeCost.text = "Cost: " + oxygenStorage.upgradeCost.ToString("0") + "$";
+            if (oxygenCurrAmount != null)
+                oxygenCurrAmount.text = "Capacity: " + oxygenStorage.maxAmount.ToString("0");
+            if (oxygenNextLvlAmount != null)
+                oxygenNextLvlAmount.text = "Upgrade: " + (oxygenStorage.maxAmount * oxygenStorage.upgradePerc).ToString("0");
+        }
+
+        // Work Station
+        if (workStation != null)
+        {
+            if (workstationLvl != null)
+                workstationLvl.text = "Work Station\nLvl: " + workStation.Level;
+            if (workStationUpgradeCost != null)
+                workStationUpgradeCost.text = "Cost: " + workStation.UpgradeCost.ToString("0") + "$";
+            if (workstationCurrproduction != null)
+                workstationCurrproduction.text = "Production: " + workStation.AddPoints.ToString("0") + "$/sec";
+            if (workstationNextLvlproduction != null)
+                workstationNextLvlproduction.text = "Upgrade: " + (workStation.AddPoints * workStation.UpgradePerc).ToString("0") + "$/sec";
+        }
+
+        // Player Gear
+        if (playerHealth != null && healCostText != null)
+            healCostText.text = "Cost: " + playerHealth.missingHealth.ToString("0") + "$";
+
+        if (mask != null)
+        {
+            if (maskCostText != null)
+                maskCostText.text = "Cost: " + mask.upgradeCost.ToString("0") + "$";
+            if (timeInRooms != null)
+                timeInRooms.text = "Room Time: " + mask.roomTimer.ToString() + "s";
+            if (maskLvl != null)
+                maskLvl.text = "Gas Mask\nLvl: " + mask.level;
+        }
+
+        if (playerOxygen != null)
+        {
+            if (oxygenBaloonCost != null)
+                oxygenBaloonCost.text = "Cost: " + playerOxygen.UpgradeCost + "$";
+            if (oxygenLvl != null)
+                oxygenLvl.text = "Oxygen Tank\nLvl: " + playerOxygen.Level;
+        }
+    }
+
+    // ===== UPGRADE METHODS =====
 
     public void UpgradePowerStorage()
     {
@@ -387,14 +601,7 @@ public class StationManager : Singleton<StationManager>
         {
             powerStorage.UpgradeAndFillStorage();
             points -= powerStorage.upgradeCost;
-            if (playerAudioSource != null && upgradeBuilding != null)
-                playerAudioSource.PlayOneShot(upgradeBuilding);
             GameEvents.TriggerResourceChanged();
-        }
-        else
-        {
-            if (playerAudioSource != null && upgradeFail != null)
-                playerAudioSource.PlayOneShot(upgradeFail);
         }
     }
 
@@ -404,14 +611,7 @@ public class StationManager : Singleton<StationManager>
         {
             oxygenStorage.UpgradeAndFillStorage();
             points -= oxygenStorage.upgradeCost;
-            if (playerAudioSource != null && upgradeBuilding != null)
-                playerAudioSource.PlayOneShot(upgradeBuilding);
             GameEvents.TriggerResourceChanged();
-        }
-        else
-        {
-            if (playerAudioSource != null && upgradeFail != null)
-                playerAudioSource.PlayOneShot(upgradeFail);
         }
     }
 
@@ -421,13 +621,6 @@ public class StationManager : Singleton<StationManager>
         {
             workStation.UpgradeWorkStation();
             points -= workStation.UpgradeCost;
-            if (playerAudioSource != null && upgradeBuilding != null)
-                playerAudioSource.PlayOneShot(upgradeBuilding);
-        }
-        else
-        {
-            if (playerAudioSource != null && upgradeFail != null)
-                playerAudioSource.PlayOneShot(upgradeFail);
         }
     }
 
@@ -435,15 +628,8 @@ public class StationManager : Singleton<StationManager>
     {
         if (playerHealth != null && points >= playerHealth.missingHealth)
         {
-            playerHealth.currentHealth = playerHealth.healthAmount;
+            playerHealth.HealToFull();
             points -= playerHealth.missingHealth;
-            if (playerAudioSource != null && upgradeGear != null)
-                playerAudioSource.PlayOneShot(upgradeGear);
-        }
-        else
-        {
-            if (playerAudioSource != null && upgradeFail != null)
-                playerAudioSource.PlayOneShot(upgradeFail);
         }
     }
 
@@ -453,14 +639,8 @@ public class StationManager : Singleton<StationManager>
         {
             playerOxygen.UpgardeMaxCapacity();
             points -= playerOxygen.UpgradeCost;
-            if (playerAudioSource != null && upgradeGear != null)
-                playerAudioSource.PlayOneShot(upgradeGear);
         }
-        else
-        {
-            if (playerAudioSource != null && upgradeFail != null)
-                playerAudioSource.PlayOneShot(upgradeFail);
-        }
+
     }
 
     public void UpgradeMask()
@@ -469,36 +649,6 @@ public class StationManager : Singleton<StationManager>
         {
             mask.UpgradeMask();
             points -= mask.upgradeCost;
-            if (playerAudioSource != null && upgradeGear != null)
-                playerAudioSource.PlayOneShot(upgradeGear);
         }
-        else
-        {
-            if (playerAudioSource != null && upgradeFail != null)
-                playerAudioSource.PlayOneShot(upgradeFail);
-        }
-    }
-
-    // === HELPER METHODS FOR EXTERNAL ACCESS ===
-    
-    /// <summary>
-    /// Add points to the player's balance
-    /// </summary>
-    public void AddPoints(float amount)
-    {
-        points += amount;
-    }
-
-    /// <summary>
-    /// Remove points from the player's balance. Returns true if successful.
-    /// </summary>
-    public bool TrySpendPoints(float amount)
-    {
-        if (points >= amount)
-        {
-            points -= amount;
-            return true;
-        }
-        return false;
     }
 }

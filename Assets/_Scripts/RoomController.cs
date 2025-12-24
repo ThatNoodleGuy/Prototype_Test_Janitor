@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Controls individual rooms with contamination timer and resource management
+/// Integrated with shift tracking system
+/// </summary>
 public class RoomController : MonoBehaviour
 {
     public enum RoomType { Power, Oxygen }
@@ -11,17 +15,6 @@ public class RoomController : MonoBehaviour
     public RoomType roomType;
     public Door door;
     public float contaminationTimer = 30f;
-    
-    [Header("Audio")]
-    public AudioSource playerAudioSource;
-    public AudioClip lowResouces;
-    public AudioClip fillStorageSFX;
-    public AudioClip a10;
-    public AudioClip a5;
-    public AudioClip a3;
-    public AudioClip a2;
-    public AudioClip a1;
-    public AudioClip a0;
     
     [Header("Resources")]
     public Storage myTank;
@@ -38,31 +31,27 @@ public class RoomController : MonoBehaviour
     public Light myAlertLight;
     public float spinningSpeed = 180f;
     
-    // Private variables
+    // FIXED: Timer management
     private float currentTimer;
+    private bool isInRoom;
+    private bool timerExpired = false;
+    private bool hasRecordedExpiration = false;
+    
+    // Visual effects
     private float spintLight = 180f;
     public float dir;
-    private bool isInRoom;
-    private bool wasInRoom; // Track previous state
-    public bool isGameOverCon = false;
-    
-    // Voice alert flags
-    private bool tenSecAlert;
-    private bool fiveSecAlert;
-    private bool threeSecAlert;
-    private bool twoSecAlert;
-    private bool oneSecAlert;
-    private bool zeroSecAlert;
-    private bool hasPlayedVoiceAlert;
     
     // References
-    [SerializeField] WorkStation workStation;
-    [SerializeField] StationManager stationManager;
+    [SerializeField] private StationManager stationManager;
+    [SerializeField] private WorkStation workStation;
 
+    // ===== PROPERTIES FOR EXTERNAL ACCESS =====
+    public bool isGoingOut => !isInRoom;  // For puzzle spawners
+    
     void Start()
     {
-        workStation = GetComponent<WorkStation>();
         stationManager = StationManager.Instance;
+        workStation = StationManager.Instance.gameObject.GetComponent<WorkStation>();
         
         // Ensure we have a trigger collider
         BoxCollider col = GetComponent<BoxCollider>();
@@ -78,23 +67,30 @@ public class RoomController : MonoBehaviour
 
     void Update()
     {
-        VoiceAlert();
-        SetLock();
         UpdateAlertLights();
         UpdateUI();
         UpdateTimer();
         FlashTimerWhenLow();
-        wasInRoom = isInRoom;
     }
 
-    // TRIGGER DETECTION (replaces CheckSpace.cs)
+    // ===== TRIGGER DETECTION (FIXED) =====
+    
     void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
         {
             isInRoom = true;
             currentTimer = contaminationTimer;
-            ResetVoiceAlerts();
+            timerExpired = false;
+            hasRecordedExpiration = false;
+            
+            // SHIFT TRACKING: Record room entry
+            if (stationManager != null && stationManager.ShiftInProgress)
+            {
+                stationManager.CurrentShift.RecordRoomEntered(roomType);
+            }
+            
+            Debug.Log($"[RoomController] Player entered {roomType} room");
         }
     }
 
@@ -102,15 +98,98 @@ public class RoomController : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
+            bool wasCompleted = HasRecource();
+            
             isInRoom = false;
             currentTimer = 0;
-            ResetVoiceAlerts();
+            timerExpired = false;
+            hasRecordedExpiration = false;
+
+            // SHIFT TRACKING: Record room exit
+            if (stationManager != null && stationManager.ShiftInProgress)
+            {
+                stationManager.CurrentShift.RecordRoomExited(roomType, wasCompleted);
+            }
+            
+            Debug.Log($"[RoomController] Player exited {roomType} room (Completed: {wasCompleted})");
         }
     }
-
+    
+    // ===== TIMER SYSTEM (FIXED) =====
+    
+    /// <summary>
+    /// Update contamination timer - FIXED VERSION
+    /// </summary>
+    void UpdateTimer()
+    {
+        // Only count down when player is in room
+        if (isInRoom)
+        {
+            currentTimer -= Time.deltaTime;
+            
+            // Timer expired
+            if (currentTimer <= 0 && !timerExpired)
+            {
+                currentTimer = 0;
+                timerExpired = true;
+                
+                // Record contamination event ONCE
+                if (!hasRecordedExpiration && stationManager != null && stationManager.ShiftInProgress)
+                {
+                    stationManager.CurrentShift.RecordContaminationEvent(roomType);
+                    hasRecordedExpiration = true;
+                }
+                
+                // Start damaging player
+                StartCoroutine(DamagePlayerFromContamination());
+            }
+        }
+        else
+        {
+            // Reset timer when not in room
+            currentTimer = 0;
+            timerExpired = false;
+            hasRecordedExpiration = false;
+        }
+    }
+    
+    /// <summary>
+    /// Damage player when contamination timer expires
+    /// </summary>
+    IEnumerator DamagePlayerFromContamination()
+    {
+        float damagePerSecond = 5f;  // Adjust as needed
+        
+        while (isInRoom && timerExpired)
+        {
+            float damage = damagePerSecond * Time.deltaTime;
+            
+            if (stationManager != null && stationManager.PlayerHealth != null)
+            {
+                stationManager.PlayerHealth.takeDamage(damage);
+                
+                // Track health loss for shift metrics
+                if (stationManager.ShiftInProgress)
+                {
+                    stationManager.CurrentShift.RecordHealthLoss(damage);
+                }
+            }
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
+    /// Flash timer text when time is running low
+    /// </summary>
     void FlashTimerWhenLow()
     {
-        if (timerText == null || !isInRoom) return;
+        if (timerText == null || !isInRoom) 
+        {
+            if (timerText != null)
+                timerText.color = Color.white;
+            return;
+        }
         
         if (currentTimer <= 10)
         {
@@ -125,209 +204,84 @@ public class RoomController : MonoBehaviour
         }
     }
 
-    void UpdateTimer()
-    {
-        if (isInRoom)
-        {
-            currentTimer -= Time.deltaTime;
-            currentTimer = Mathf.Max(0, currentTimer);
-        }
-        else
-        {
-            currentTimer = 0;
-        }
-        
-        if (timerText != null)
-            timerText.text = "Time:" + Mathf.Floor(currentTimer);
-    }
-
-    void SetLock()
-    {
-        if (door == null) return;
-
-        if (isInRoom)
-        {
-            // When player is in room, lock if time runs out
-            door.isLocked = currentTimer <= 0;
-        }
-        else
-        {
-            // When player is outside, lock if resources are full
-            door.isLocked = HasRecource();
-        }
-    }
-
-    void VoiceAlert()
-    {
-        if (!isInRoom || playerAudioSource == null) return;
-
-        float time = Mathf.Floor(currentTimer);
-
-        if (time == 16 && !tenSecAlert)
-        {
-            if (a10 != null) playerAudioSource.PlayOneShot(a10);
-            tenSecAlert = true;
-        }
-        else if (time == 5 && !fiveSecAlert)
-        {
-            if (a5 != null) playerAudioSource.PlayOneShot(a5);
-            fiveSecAlert = true;
-        }
-        else if (time == 3 && !threeSecAlert)
-        {
-            if (a3 != null) playerAudioSource.PlayOneShot(a3);
-            threeSecAlert = true;
-        }
-        else if (time == 2 && !twoSecAlert)
-        {
-            if (a2 != null) playerAudioSource.PlayOneShot(a2);
-            twoSecAlert = true;
-        }
-        else if (time == 1 && !oneSecAlert)
-        {
-            if (a1 != null) playerAudioSource.PlayOneShot(a1);
-            oneSecAlert = true;
-        }
-        else if (time == 0 && !zeroSecAlert && oneSecAlert)
-        {
-            if (a0 != null)
-            {
-                playerAudioSource.PlayOneShot(a0);
-                StartCoroutine(WaitForGameOver(a0.length + 0.5f));
-            }
-            zeroSecAlert = true;
-        }
-    }
-
-    void ResetVoiceAlerts()
-    {
-        tenSecAlert = false;
-        fiveSecAlert = false;
-        threeSecAlert = false;
-        twoSecAlert = false;
-        oneSecAlert = false;
-        zeroSecAlert = false;
-    }
-
-    IEnumerator WaitForGameOver(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        if (isInRoom && zeroSecAlert)
-        {
-            isGameOverCon = true;
-        }
-    }
-
-    void UpdateAlertLights()
-    {
-        if (myAlertLight == null) return;
-
-        if (HasRecource())
-        {
-            // Resources full - alert on
-            myAlertLight.gameObject.SetActive(true);
-            spintLight = 0;
-        }
-        else
-        {
-            // Resources low - spin light
-            myAlertLight.gameObject.SetActive(true);
-            spintLight += spinningSpeed * Time.deltaTime;
-            myAlertLight.transform.localRotation = Quaternion.Euler(spintLight, dir, 0);
-        }
-    }
-
-    void UpdateUI()
-    {
-        if (myTank == null) return;
-
-        if (ammountPerc != null)
-            ammountPerc.text = (myTank.amountPerc * 100).ToString("0") + "%";
-        
-        if (storageLvlText != null)
-            storageLvlText.text = "(lvl" + myTank.level + ")";
-        
-        if (fillStorage != null && alertMsg != null)
-        {
-            fillStorage.interactable = (alertMsg.text == baseMsg);
-        }
-    }
-
-    public bool HasRecource()
-    {
-        if (myTank == null || workStation == null) return false;
-
-        bool hasEnough = myTank.amount >= myTank.reqAmount * workStation.Level;
-
-        if (hasEnough)
-        {
-            hasPlayedVoiceAlert = false;
-        }
-        else if (!hasPlayedVoiceAlert && lowResouces != null && playerAudioSource != null)
-        {
-            StartCoroutine(PlayLowResourceAlert());
-            hasPlayedVoiceAlert = true;
-        }
-
-        return hasEnough;
-    }
-
-    IEnumerator PlayLowResourceAlert()
-    {
-        yield return new WaitForSeconds(2.5f);
-        if (playerAudioSource != null && lowResouces != null)
-            playerAudioSource.PlayOneShot(lowResouces);
-    }
-
+    // ===== RESOURCE MANAGEMENT =====
+    
+    /// <summary>
+    /// Fill this room's storage (called by button)
+    /// </summary>
     public void FillStorage()
     {
         if (myTank == null) return;
-        
-        // Start animation
-        StartCoroutine(AnimateFill());
-        
-        // Audio & events
-        if (playerAudioSource != null && fillStorageSFX != null)
-            playerAudioSource.PlayOneShot(fillStorageSFX);
-        
-        GameEvents.TriggerResourceFilled(roomType);
-        GameEvents.TriggerResourceChanged();
-    }
 
-    private IEnumerator AnimateFill()
-    {
-        float start = myTank.amount;
-        float target = myTank.maxAmount;
-        float duration = 0.5f;
-        float elapsed = 0;
-        
-        while (elapsed < duration)
+        myTank.amount = myTank.maxAmount;
+
+        // SHIFT TRACKING: Record completion
+        if (stationManager != null && stationManager.ShiftInProgress)
         {
-            elapsed += Time.deltaTime;
-            float t = Mathf.SmoothStep(0, 1, elapsed / duration);
-            myTank.amount = Mathf.Lerp(start, target, t);
-            yield return null;
+            stationManager.CurrentShift.RecordRoomCompleted(roomType);
         }
         
-        myTank.amount = target;
+        // Trigger events
+        GameEvents.TriggerResourceFilled(roomType);
+        GameEvents.TriggerResourceChanged();
+        
+        Debug.Log($"[RoomController] {roomType} storage filled!");
+    }
+    
+    /// <summary>
+    /// Check if this room has resources
+    /// </summary>
+    public bool HasRecource()
+    {
+        if (myTank == null) return false;
+        return myTank.amount >= myTank.reqAmount;
     }
 
-    // === COMPATIBILITY METHODS FOR OLD SCRIPTS ===
+    // ===== UI UPDATES =====
     
-    // Old method name (note the typo "Massage" instead of "Message")
-    // Kept for compatibility with OxygenSpawner and FuseBoard
+    void UpdateUI()
+    {
+        // Timer display
+        if (timerText != null)
+        {
+            if (isInRoom)
+            {
+                int minutes = Mathf.FloorToInt(currentTimer / 60f);
+                int seconds = Mathf.FloorToInt(currentTimer % 60f);
+                timerText.text = $"{minutes:00}:{seconds:00}";
+            }
+            else
+            {
+                timerText.text = "--:--";
+            }
+        }
+        
+        // Storage level
+        if (ammountPerc != null && myTank != null)
+        {
+            ammountPerc.text = (myTank.amountPerc * 100).ToString("0") + "%";
+        }
+        
+        if (storageLvlText != null && myTank != null)
+        {
+            storageLvlText.text = "Lvl: " + myTank.level;
+        }
+    }
+
+    /// <summary>
+    /// Show alert message (used by puzzle spawners)
+    /// </summary>
     public void AlertMassage(List<string> errors)
     {
-        SetAlertMessage(errors);
-    }
-    
-    public void SetAlertMessage(List<string> errors)
-    {
         if (alertMsg == null) return;
-
-        if (errors != null && errors.Count > 0)
+        
+        if (errors.Count > 0)
         {
-            alertMsg.text = string.Join("; ", errors);
+            alertMsg.text = "";
+            foreach (string err in errors)
+            {
+                alertMsg.text += err;
+            }
         }
         else
         {
@@ -335,13 +289,40 @@ public class RoomController : MonoBehaviour
         }
     }
 
-    // === PUBLIC ACCESSORS ===
+    // ===== VISUAL EFFECTS =====
     
-    // For compatibility with old RoomController
-    public bool IsInRoom => isInRoom;
-    public float Timer => currentTimer;
-    public float timer => currentTimer; // lowercase version for old scripts
-    
-    // isGoingOut - true when player just exited the room
-    public bool isGoingOut => !isInRoom && wasInRoom;
+    void UpdateAlertLights()
+    {
+        if (myAlertLight == null) return;
+        
+        if (!HasRecource())
+        {
+            // Spin light when resource is low
+            spintLight += Time.deltaTime * spinningSpeed;
+            myAlertLight.transform.rotation = Quaternion.Euler(spintLight, 0, 0);
+            
+            if (!myAlertLight.enabled)
+                myAlertLight.enabled = true;
+        }
+        else
+        {
+            if (myAlertLight.enabled)
+                myAlertLight.enabled = false;
+        }
+    }
+
+    // void SetLock()
+    // {
+    //     if (door == null) return;
+        
+    //     // Lock door when resources are empty
+    //     if (!HasRecource())
+    //     {
+    //         door.locked = true;
+    //     }
+    //     else
+    //     {
+    //         door.locked = false;
+    //     }
+    // }
 }
