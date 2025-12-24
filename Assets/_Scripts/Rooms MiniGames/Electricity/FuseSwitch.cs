@@ -1,105 +1,170 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Individual 3D fuse switch - Simple, clean, no transform dependencies
+/// Individual fuse switch - toggles between on/off states
+/// Interacted with via PlayerInteraction (like OxygenTank)
 /// </summary>
+[RequireComponent(typeof(MeshRenderer))]
 [RequireComponent(typeof(Collider))]
 public class FuseSwitch : MonoBehaviour
 {
-    [Header("Visual")]
-    [SerializeField] private Renderer switchRenderer;
-    [SerializeField] private Transform switchLever;  // Optional: physical lever to rotate
+    [Header("Visual Components")]
+    [SerializeField] private MeshRenderer switchRenderer;
+    [SerializeField] private Transform leverHandle;  // Optional: for visual animation
     
-    [Header("Rotation Settings")]
+    [Header("Animation (Optional)")]
+    [SerializeField] private float toggleAnimationSpeed = 5f;
     [SerializeField] private float onRotation = 45f;
     [SerializeField] private float offRotation = -45f;
-    [SerializeField] private float rotationSpeed = 10f;
     
-    private int switchIndex;
+    // State
     private bool isOn = false;
-    private bool shouldBeOn = false;  // The correct target state
+    private bool isCorrectWhenOn = true;
+    private int switchIndex;
+    private FuseBoard parentBoard;
     
+    // Materials
     private Material correctMaterial;
     private Material incorrectMaterial;
-    private Material currentMaterial;
+    private Material solvedMaterial;
     
-    private Quaternion targetRotation;
+    // Animation
+    private bool isAnimating = false;
+    private float targetRotation;
+
+    void Awake()
+    {
+        // Get or add required components
+        if (switchRenderer == null)
+        {
+            switchRenderer = GetComponent<MeshRenderer>();
+        }
+        
+        // Ensure we have a collider for raycasting
+        Collider col = GetComponent<Collider>();
+        if (col == null)
+        {
+            BoxCollider boxCol = gameObject.AddComponent<BoxCollider>();
+            boxCol.size = Vector3.one * 0.15f;
+        }
+    }
 
     void Update()
     {
-        // Smoothly rotate lever if it exists
-        if (switchLever != null)
+        // Animate lever rotation if we have a handle
+        if (leverHandle != null && isAnimating)
         {
-            switchLever.localRotation = Quaternion.Lerp(
-                switchLever.localRotation, 
-                targetRotation, 
-                Time.deltaTime * rotationSpeed
-            );
+            AnimateLever();
+        }
+    }
+
+    /// <summary>
+    /// Initialize the switch
+    /// </summary>
+    public void Initialize(FuseBoard board, int index, bool startOn, bool correctWhenOn)
+    {
+        parentBoard = board;
+        switchIndex = index;
+        isOn = startOn;
+        isCorrectWhenOn = correctWhenOn;
+        
+        // Set initial visual state
+        UpdateVisuals();
+        
+        if (leverHandle != null)
+        {
+            targetRotation = isOn ? onRotation : offRotation;
+            leverHandle.localRotation = Quaternion.Euler(targetRotation, 0, 0);
         }
     }
     
     /// <summary>
-    /// Initialize the switch
-    /// </summary>
-    public void Initialize(int index, bool startState, bool isCorrect)
-    {
-        switchIndex = index;
-        isOn = startState;
-        shouldBeOn = isCorrect ? startState : !startState;
-        
-        UpdateVisuals();
-    }
-    
-    /// <summary>
-    /// Set the materials for visual feedback
+    /// Set materials for visual feedback
     /// </summary>
     public void SetMaterials(Material correct, Material incorrect)
     {
         correctMaterial = correct;
         incorrectMaterial = incorrect;
+        
         UpdateVisuals();
     }
     
     /// <summary>
-    /// Set what the correct state should be
+    /// Set the solved material (puzzle complete)
     /// </summary>
-    public void SetCorrectState(bool correct)
+    public void SetSolvedMaterial(Material solved)
     {
-        // If correct = true, current state IS correct
-        // If correct = false, current state is WRONG
-        shouldBeOn = correct ? isOn : !isOn;
+        solvedMaterial = solved;
+        
+        if (switchRenderer != null && solvedMaterial != null)
+        {
+            switchRenderer.material = solvedMaterial;
+        }
+    }
+    
+    /// <summary>
+    /// Set what state is considered "correct"
+    /// </summary>
+    public void SetCorrectState(bool correctWhenOn)
+    {
+        isCorrectWhenOn = correctWhenOn;
         UpdateVisuals();
     }
     
     /// <summary>
-    /// Toggle the switch state
+    /// Called by PlayerInteraction when player clicks this switch
     /// </summary>
-    public void Toggle()
+    public void Interact()
+    {
+        if (parentBoard != null && !parentBoard.CanInteract())
+        {
+            return; // Puzzle is solved or inactive
+        }
+        
+        Toggle();
+    }
+    
+    /// <summary>
+    /// Toggle the switch on/off
+    /// </summary>
+    void Toggle()
     {
         isOn = !isOn;
         UpdateVisuals();
+        
+        // Start animation
+        if (leverHandle != null)
+        {
+            isAnimating = true;
+            targetRotation = isOn ? onRotation : offRotation;
+        }
+        
+        // Notify parent board
+        if (parentBoard != null)
+        {
+            parentBoard.OnSwitchToggled(this);
+        }
+        
+        // Optional: Add sound effect here
+        // AudioSource.PlayClipAtPoint(toggleSound, transform.position);
     }
     
     /// <summary>
-    /// Check if switch is in correct state
+    /// Check if switch is in the correct state
     /// </summary>
     public bool IsInCorrectState()
     {
-        return isOn == shouldBeOn;
+        return isOn == isCorrectWhenOn;
     }
     
     /// <summary>
-    /// Set solved material (puzzle complete)
+    /// Check if player can interact (for UI prompts)
     /// </summary>
-    public void SetSolvedMaterial(Material solvedMat)
+    public bool CanInteract()
     {
-        if (switchRenderer != null && solvedMat != null)
-        {
-            switchRenderer.material = solvedMat;
-        }
+        return parentBoard != null && parentBoard.CanInteract();
     }
     
     /// <summary>
@@ -107,31 +172,98 @@ public class FuseSwitch : MonoBehaviour
     /// </summary>
     void UpdateVisuals()
     {
-        // Update material color
-        if (switchRenderer != null)
+        if (switchRenderer == null) return;
+        
+        bool isCorrect = IsInCorrectState();
+        
+        if (isCorrect && correctMaterial != null)
         {
-            if (IsInCorrectState() && correctMaterial != null)
-            {
-                switchRenderer.material = correctMaterial;
-            }
-            else if (!IsInCorrectState() && incorrectMaterial != null)
-            {
-                switchRenderer.material = incorrectMaterial;
-            }
+            switchRenderer.material = correctMaterial;
+        }
+        else if (!isCorrect && incorrectMaterial != null)
+        {
+            switchRenderer.material = incorrectMaterial;
         }
         
-        // Update rotation
-        if (switchLever != null)
+        // Optional: Change emission or other properties for on/off state
+        Material mat = switchRenderer.material;
+        if (mat.HasProperty("_EmissionColor"))
         {
-            float angle = isOn ? onRotation : offRotation;
-            targetRotation = Quaternion.Euler(angle, 0, 0);
+            if (isOn)
+            {
+                mat.EnableKeyword("_EMISSION");
+                mat.SetColor("_EmissionColor", isCorrect ? Color.green * 0.5f : Color.red * 0.5f);
+            }
+            else
+            {
+                mat.DisableKeyword("_EMISSION");
+            }
         }
-        else
+    }
+    
+    /// <summary>
+    /// Animate the lever handle
+    /// </summary>
+    void AnimateLever()
+    {
+        if (leverHandle == null) return;
+        
+        float currentRotation = leverHandle.localEulerAngles.x;
+        
+        // Normalize to -180 to 180
+        if (currentRotation > 180) currentRotation -= 360;
+        
+        // Lerp to target
+        float newRotation = Mathf.LerpAngle(currentRotation, targetRotation, 
+            toggleAnimationSpeed * Time.deltaTime);
+        
+        leverHandle.localRotation = Quaternion.Euler(newRotation, 0, 0);
+        
+        // Stop animating when close enough
+        if (Mathf.Abs(newRotation - targetRotation) < 0.1f)
         {
-            // If no lever, rotate the whole object
-            float angle = isOn ? onRotation : offRotation;
-            targetRotation = Quaternion.Euler(angle, 0, 0);
-            transform.localRotation = targetRotation;
+            leverHandle.localRotation = Quaternion.Euler(targetRotation, 0, 0);
+            isAnimating = false;
         }
+    }
+    
+    /// <summary>
+    /// Get current state for debugging
+    /// </summary>
+    public string GetStateInfo()
+    {
+        return $"Switch {switchIndex}: {(isOn ? "ON" : "OFF")} - {(IsInCorrectState() ? "CORRECT" : "INCORRECT")}";
+    }
+    
+    /// <summary>
+    /// Highlight when mouse hovers (optional)
+    /// </summary>
+    void OnMouseEnter()
+    {
+        if (CanInteract())
+        {
+            // Scale up slightly when hovering
+            transform.localScale = Vector3.one * 1.1f;
+        }
+    }
+    
+    void OnMouseExit()
+    {
+        // Return to normal scale
+        transform.localScale = Vector3.one;
+    }
+    
+    /// <summary>
+    /// Draw gizmo to show state in editor
+    /// </summary>
+    void OnDrawGizmos()
+    {
+        Gizmos.color = IsInCorrectState() ? Color.green : Color.red;
+        Gizmos.DrawWireCube(transform.position, Vector3.one * 0.15f);
+        
+        // Draw a line to show on/off state
+        Vector3 lineStart = transform.position;
+        Vector3 lineEnd = transform.position + transform.up * (isOn ? 0.1f : -0.1f);
+        Gizmos.DrawLine(lineStart, lineEnd);
     }
 }

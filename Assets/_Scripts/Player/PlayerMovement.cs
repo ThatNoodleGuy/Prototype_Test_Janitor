@@ -6,35 +6,44 @@ using UnityEngine.UI;
 
 public class PlayerMovement : MonoBehaviour
 {
-    public AudioSource musicBG;
-    AudioSource audioManager;
-    
-    // UI
-    public Slider playerSpeed;
-    public Slider mouseSensitivity;
-    public Slider gameVolume;
-    public Slider musicBGVolume;
-    public GameObject pauseMenu;
+    [Header("Audio")]
+    [SerializeField] private AudioSource musicBG;
+    private AudioSource audioManager;
 
-    // Look around
-    float mouseX;
-    public float cameraSpeed = 225f; // Default value
-    float mouseY;
-    float cameraX;
-    Transform cameraTrn;
+    [Header("Camera Settings")]
+    [SerializeField] private float defaultCameraSpeed = 225f;  // ADDED!
+    [SerializeField] private float minCameraAngle = -85f;
+    [SerializeField] private float maxCameraAngle = 85f;
+    private float currentCameraSpeed;
+    private float mouseX;
+    private float mouseY;
+    private float cameraX;
+    private Transform cameraTrn;
 
-    // Movement
-    float horizontal;
-    float vertical;
-    public float movementSpeed = 4f; // Default value
-    Vector3 moveDirection;
-    Rigidbody rb;
+    [Header("Movement Settings")]
+    [SerializeField] private float defaultMovementSpeed = 4f;  // ADDED!
+    [SerializeField] private float sprintMultiplier = 2f;
+    [SerializeField] private float acceleration = 20f;
+    [SerializeField] private float deceleration = 25f;
+    [SerializeField] private float airControl = 0.3f;
+    private float currentMovementSpeed;
+    private Vector3 currentVelocity = Vector3.zero;
+    private Vector3 targetVelocity = Vector3.zero;
+    private float horizontal;
+    private float vertical;
+    private Rigidbody rb;
 
-    // Jump
-    public LayerMask groundLayer;
-    public bool isGrounded;
-    [SerializeField] float jumpHeight = 5f;
-    [SerializeField] float groundCheckDistance = 0.3f;
+    [Header("Jump Settings")]
+    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private float jumpHeight = 5f;
+    [SerializeField] private float groundCheckDistance = 0.3f;
+    [SerializeField] private float groundCheckRadius = 0.3f;
+    private bool isGrounded;
+
+    // Properties for external access
+    public bool IsGrounded => isGrounded;
+    public float CurrentSpeed => currentVelocity.magnitude;
+    public bool IsSprinting { get; private set; }
 
     void Start()
     {
@@ -50,122 +59,134 @@ public class PlayerMovement : MonoBehaviour
         // Configure Rigidbody
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
         
         // Camera init
         cameraX = 0;
-        cameraTrn = GameObject.FindGameObjectWithTag("PlayerCamera").transform;
+        GameObject cameraObj = GameObject.FindGameObjectWithTag("PlayerCamera");
+        if (cameraObj != null)
+        {
+            cameraTrn = cameraObj.transform;
+        }
+        else
+        {
+            cameraObj = GameObject.FindGameObjectWithTag("MainCamera");
+            if (cameraObj != null)
+            {
+                cameraTrn = cameraObj.transform;
+            }
+        }
+        
+        if (cameraTrn == null)
+        {
+            Debug.LogError("PlayerMovement: Could not find camera!");
+        }
 
-        // Initialize values from sliders if they exist
-        if (mouseSensitivity != null)
-            cameraSpeed = mouseSensitivity.value;
-        if (playerSpeed != null)
-            movementSpeed = playerSpeed.value;
+        // CRITICAL FIX: Initialize speeds!
+        currentCameraSpeed = defaultCameraSpeed;
+        currentMovementSpeed = defaultMovementSpeed;
+        
+        Debug.Log($"[PlayerMovement] Initialized - Movement Speed: {currentMovementSpeed}, Camera Speed: {currentCameraSpeed}");
 
         Cursor.lockState = CursorLockMode.Locked;
     }
 
     void Update()
     {
-        // Handle pause
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            PauseGame();
-        }
+        HandleCamera();
+        HandleMovementInput();
+    }
 
-        if (pauseMenu.activeInHierarchy)
-        {
-            return;
-        }
+    void FixedUpdate()
+    {
+        CheckGrounded();
+        ApplyMovement();
+    }
 
-        // Handle sprint
-        float currentSpeed = Input.GetKey(KeyCode.LeftShift) ? movementSpeed * 2 : movementSpeed;
-
+    /// <summary>
+    /// Handle camera rotation with smooth mouse input
+    /// </summary>
+    private void HandleCamera()
+    {
         // Camera rotation (left & right) - horizontal rotation on player body
-        mouseX = Input.GetAxis("Mouse X") * cameraSpeed;
+        mouseX = Input.GetAxis("Mouse X") * currentCameraSpeed;
         transform.Rotate(0, mouseX * Time.deltaTime, 0);
 
         // Camera rotation (up & down) - vertical rotation on camera
-        mouseY = Input.GetAxis("Mouse Y") * cameraSpeed;
+        mouseY = Input.GetAxis("Mouse Y") * currentCameraSpeed;
         cameraX -= mouseY * Time.deltaTime;
-        cameraX = Mathf.Clamp(cameraX, -65, 48);
-        cameraTrn.localRotation = Quaternion.Euler(cameraX, 0, 0);
+        cameraX = Mathf.Clamp(cameraX, minCameraAngle, maxCameraAngle);
+        
+        if (cameraTrn != null)
+        {
+            cameraTrn.localRotation = Quaternion.Euler(cameraX, 0, 0);
+        }
+    }
+
+    /// <summary>
+    /// Get movement input and calculate target velocity
+    /// </summary>
+    private void HandleMovementInput()
+    {
+        // Check if sprinting
+        IsSprinting = Input.GetKey(KeyCode.LeftShift);
+        float targetSpeed = IsSprinting ? currentMovementSpeed * sprintMultiplier : currentMovementSpeed;
 
         // Get input
         horizontal = Input.GetAxis("Horizontal");
         vertical = Input.GetAxis("Vertical");
 
-        // Calculate movement direction relative to where player is looking
-        moveDirection = (transform.forward * vertical + transform.right * horizontal).normalized * currentSpeed;
-
-        // Ground check
-        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
+        // Calculate target direction relative to where player is looking
+        Vector3 inputDirection = (transform.forward * vertical + transform.right * horizontal).normalized;
+        targetVelocity = inputDirection * targetSpeed;
 
         // Jump
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, Mathf.Sqrt(jumpHeight * 2f * Mathf.Abs(Physics.gravity.y)), rb.linearVelocity.z);
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 
+                Mathf.Sqrt(jumpHeight * 2f * Mathf.Abs(Physics.gravity.y)), 
+                rb.linearVelocity.z);
         }
     }
 
-    void FixedUpdate()
+    /// <summary>
+    /// Check if player is grounded using sphere cast for more reliable detection
+    /// </summary>
+    private void CheckGrounded()
     {
-        // Apply movement in FixedUpdate for physics
-        Vector3 newVelocity = new Vector3(moveDirection.x, rb.linearVelocity.y, moveDirection.z);
-        rb.linearVelocity = newVelocity;
+        Vector3 spherePosition = transform.position - new Vector3(0, groundCheckDistance * 0.5f, 0);
+        isGrounded = Physics.CheckSphere(spherePosition, groundCheckRadius, groundLayer);
     }
 
-    private void PauseGame()
+    /// <summary>
+    /// Apply smooth movement with acceleration and deceleration
+    /// </summary>
+    private void ApplyMovement()
     {
-        pauseMenu.SetActive(!pauseMenu.activeInHierarchy);
-        if (pauseMenu.activeInHierarchy)
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-        }
-        else
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
-    }
-
-    public void SetPlayerSpeed()
-    {
-        movementSpeed = playerSpeed.value;
-    }
-
-    public void SetMouseSensitivity()
-    {
-        cameraSpeed = mouseSensitivity.value;
-    }
-
-    public void SetGameVoluve()
-    {
-        AudioListener.volume = gameVolume.value;
-    }
-
-    public void SetMusicVolume()
-    {
-        musicBG.volume = musicBGVolume.value;
-    }
-
-    public void SetDefaults()
-    {
-        musicBGVolume.value = 0.5f;
-        gameVolume.value = 1;
-        mouseSensitivity.value = 225;
-        playerSpeed.value = 4;
+        Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
         
-        // Apply the defaults immediately
-        SetMouseSensitivity();
-        SetPlayerSpeed();
-        SetGameVoluve();
-        SetMusicVolume();
+        // Choose acceleration or deceleration
+        float accelerationRate = targetVelocity.magnitude > 0.01f ? acceleration : deceleration;
+        
+        // Reduce control in air
+        if (!isGrounded)
+        {
+            accelerationRate *= airControl;
+        }
+        
+        // Smoothly interpolate towards target velocity
+        currentVelocity = Vector3.Lerp(horizontalVelocity, targetVelocity, 
+            accelerationRate * Time.fixedDeltaTime);
+        
+        // Apply the new velocity while preserving vertical velocity
+        rb.linearVelocity = new Vector3(currentVelocity.x, rb.linearVelocity.y, currentVelocity.z);
     }
-
+    
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.red;
-        Gizmos.DrawRay(transform.position, Vector3.down * groundCheckDistance);
+        // Draw ground check sphere
+        Gizmos.color = isGrounded ? Color.green : Color.red;
+        Vector3 spherePosition = transform.position - new Vector3(0, groundCheckDistance * 0.5f, 0);
+        Gizmos.DrawWireSphere(spherePosition, groundCheckRadius);
     }
 }

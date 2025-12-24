@@ -4,6 +4,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
+/// <summary>
+/// Fuse Board Puzzle - Manages puzzle state only
+/// Player interaction handled by PlayerInteraction script
+/// </summary>
 public class FuseBoard : MonoBehaviour
 {
     [Header("Room Reference")]
@@ -14,6 +18,7 @@ public class FuseBoard : MonoBehaviour
     [SerializeField] private Transform switchContainer;  // Parent for organization
     [SerializeField] private Vector3 gridOrigin = Vector3.zero;  // Relative to this GameObject
     [SerializeField] private Vector2 switchSpacing = new Vector2(0.3f, 0.3f);
+    [SerializeField] private float switchForwardOffset = 0.05f;  // NEW: Push switches forward from board
     
     [Header("Puzzle Settings")]
     [SerializeField] private int baseGridSize = 3;  // 3x3 at level 1
@@ -44,20 +49,21 @@ public class FuseBoard : MonoBehaviour
             ClearPuzzle();
             puzzleActive = false;
         }
-        
-        // Check for player interaction
-        if (puzzleActive && !puzzleSolved)
-        {
-            HandlePlayerInput();
-        }
     }
     
     /// <summary>
     /// Generate the puzzle based on room level
+    /// FIXED: Spawns switches with forward offset
     /// </summary>
     void GeneratePuzzle()
     {
         ClearPuzzle();
+        
+        if (switchPrefab == null)
+        {
+            Debug.LogError("[FuseBoard] Switch prefab is not assigned!");
+            return;
+        }
         
         // Calculate grid size
         int level = powerRoomController?.myTank?.level ?? 1;
@@ -69,17 +75,20 @@ public class FuseBoard : MonoBehaviour
         {
             for (int col = 0; col < gridSize; col++)
             {
-                // Calculate world position (relative to this transform)
+                // Calculate local position (relative to this transform)
+                // FIXED: Add forward offset to prevent spawning inside wall
                 Vector3 localPos = gridOrigin + new Vector3(
                     col * switchSpacing.x - (gridSize - 1) * switchSpacing.x / 2f,  // Center horizontally
                     row * switchSpacing.y - (gridSize - 1) * switchSpacing.y / 2f,  // Center vertically
-                    0
+                    switchForwardOffset  // FIXED: Use forward offset instead of hardcoded 0
                 );
                 
+                // Convert to world space
                 Vector3 worldPos = transform.TransformPoint(localPos);
                 
                 // Instantiate switch
-                GameObject switchObj = Instantiate(switchPrefab, worldPos, transform.rotation, switchContainer != null ? switchContainer : transform);
+                GameObject switchObj = Instantiate(switchPrefab, worldPos, transform.rotation, 
+                    switchContainer != null ? switchContainer : transform);
                 switchObj.name = $"Switch_R{row}_C{col}";
                 
                 FuseSwitch fuseSwitch = switchObj.GetComponent<FuseSwitch>();
@@ -87,10 +96,14 @@ public class FuseBoard : MonoBehaviour
                 {
                     // Random initial state
                     bool startOn = Random.value > 0.5f;
-                    fuseSwitch.Initialize(index, startOn, true);  // All start as correct
+                    fuseSwitch.Initialize(this, index, startOn, true);  // Pass reference to this board
                     fuseSwitch.SetMaterials(correctMaterial, incorrectMaterial);
                     
                     switches.Add(fuseSwitch);
+                }
+                else
+                {
+                    Debug.LogError($"[FuseBoard] Switch prefab is missing FuseSwitch component! ({switchObj.name})");
                 }
                 
                 index++;
@@ -111,7 +124,7 @@ public class FuseBoard : MonoBehaviour
             }
         }
         
-        Debug.Log($"[FuseBoard] Generated {gridSize}x{gridSize} puzzle with {errorCount} errors");
+        Debug.Log($"[FuseBoard] Generated {gridSize}x{gridSize} puzzle with {errorCount} errors at forward offset {switchForwardOffset}");
     }
     
     /// <summary>
@@ -129,37 +142,13 @@ public class FuseBoard : MonoBehaviour
     }
     
     /// <summary>
-    /// Handle player looking at and clicking switches
+    /// Called by FuseSwitch when it's toggled (via PlayerInteraction)
     /// </summary>
-    void HandlePlayerInput()
+    public void OnSwitchToggled(FuseSwitch toggledSwitch)
     {
-        if (!Input.GetMouseButtonDown(0)) return;
+        if (puzzleSolved) return;
         
-        // Raycast from camera
-        #if UNITY_6000_0_OR_NEWER
-            Camera playerCamera = FindAnyObjectByType<PlayerCamera>().GetComponent<Camera>();
-        #else
-            Camera playerCamera = FindObjectOfType<PlayerCamera>().GetComponent<Camera>();
-        #endif
-        
-        if (playerCamera == null) return;
-        
-        Ray ray = playerCamera.ScreenPointToRay(Input.mousePosition);
-        RaycastHit hit;
-        
-        if (Physics.Raycast(ray, out hit, 5f))  // 5 meter reach
-        {
-            FuseSwitch fuseSwitch = hit.collider.GetComponent<FuseSwitch>();
-            
-            if (fuseSwitch != null && switches.Contains(fuseSwitch))
-            {
-                // Toggle the switch
-                fuseSwitch.Toggle();
-
-                // Check if solved
-                CheckSolution();
-            }
-        }
+        CheckSolution();
     }
     
     /// <summary>
@@ -210,7 +199,16 @@ public class FuseBoard : MonoBehaviour
     }
     
     /// <summary>
+    /// Check if puzzle is currently active and not solved
+    /// </summary>
+    public bool CanInteract()
+    {
+        return puzzleActive && !puzzleSolved;
+    }
+    
+    /// <summary>
     /// Optional: Draw grid in editor for setup
+    /// FIXED: Shows actual spawn positions including forward offset
     /// </summary>
     void OnDrawGizmosSelected()
     {
@@ -223,26 +221,27 @@ public class FuseBoard : MonoBehaviour
             {
                 for (int col = 0; col < gridSize; col++)
                 {
+                    // FIXED: Include forward offset in visualization
                     Vector3 localPos = gridOrigin + new Vector3(
                         col * switchSpacing.x - (gridSize - 1) * switchSpacing.x / 2f,
                         row * switchSpacing.y - (gridSize - 1) * switchSpacing.y / 2f,
-                        0
+                        switchForwardOffset  // FIXED: Show actual spawn position
                     );
                     
                     Vector3 worldPos = transform.TransformPoint(localPos);
                     Gizmos.DrawWireCube(worldPos, Vector3.one * 0.15f);
+                    
+                    // Draw line from board to switch position
+                    Gizmos.color = Color.cyan;
+                    Gizmos.DrawLine(transform.position, worldPos);
+                    Gizmos.color = Color.yellow;
                 }
             }
+            
+            // Draw board position and forward direction
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(transform.position, 0.05f);
+            Gizmos.DrawRay(transform.position, transform.forward * 0.2f);
         }
     }
 }
-
-
-
-
-
-
-
-
-
-

@@ -4,12 +4,16 @@ using UnityEngine;
 
 public class GeneralConsumption : MonoBehaviour
 {
-	public bool usePassiveO2;
-	public bool usePassivePower;
-	public GameObject[] lights;
+	[SerializeField] private bool usePassiveO2;
+	[SerializeField] private bool usePassivePower;
+	[SerializeField] private GameObject[] lights;
 	StationManager stationManager;
-	public float breatheDrain;
-	public float powerDrain;
+	[SerializeField] private float breatheDrain;
+	[SerializeField] private float powerDrain;
+
+	private float valueToDrainFast = 100f;
+	private float valueToStop = 0;
+	private float valueToDrainSlow = 0.05f;
 
 
 
@@ -38,6 +42,22 @@ public class GeneralConsumption : MonoBehaviour
 		else
 		{
 			LightsOn();
+		}
+
+		if (Input.GetKey(KeyCode.Q))
+		{
+			breatheDrain = valueToDrainFast;
+			powerDrain = valueToDrainFast;
+		}
+		else if (Input.GetKey(KeyCode.Z))
+		{
+			breatheDrain = valueToStop;
+			powerDrain = valueToStop;
+		}
+		else
+		{
+			breatheDrain = valueToDrainSlow;
+			powerDrain = valueToDrainSlow;
 		}
 
 	}

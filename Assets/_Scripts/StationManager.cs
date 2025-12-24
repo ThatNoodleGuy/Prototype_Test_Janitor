@@ -33,13 +33,7 @@ public class StationManager : Singleton<StationManager>
     [SerializeField] private ShiftMetrics currentShift;
     
     [Header("Performance Review UI")]
-    [SerializeField] private GameObject performanceReviewPanel;
-    [SerializeField] private TextMeshProUGUI reviewTitleText;
-    [SerializeField] private TextMeshProUGUI classificationText;
-    [SerializeField] private TextMeshProUGUI evaluationMessageText;
-    [SerializeField] private TextMeshProUGUI observationsText;
-    [SerializeField] private TextMeshProUGUI aiStatusText;
-    [SerializeField] private Button continueButton;
+    [SerializeField] private ShiftEvaluationUI evaluationUI;  // NEW: Single UI component
     
     [Header("Shift UI")]
     [SerializeField] private TextMeshProUGUI shiftTimerText;
@@ -50,7 +44,7 @@ public class StationManager : Singleton<StationManager>
     [SerializeField] private Button viewBtn;
     [SerializeField] private GameObject homeUI;
     [SerializeField] private GameObject storeUI;
-    [SerializeField] private Button startBtnUI;  // Changed from StartBtnUI
+    [SerializeField] private Button startBtnUI;
     [SerializeField] private GameObject workingIcon;
     [SerializeField] private TextMeshProUGUI scoreUI;
     [SerializeField] private TextMeshProUGUI powerTextUI;
@@ -138,9 +132,24 @@ public class StationManager : Singleton<StationManager>
             
             if (aiManager == null)
             {
-                Debug.LogWarning("No AIManager found! Creating one...");
+                Debug.LogWarning("[StationManager] No AIManager found! Creating one...");
                 GameObject aiObj = new GameObject("AIManager");
                 aiManager = aiObj.AddComponent<AIManager>();
+            }
+        }
+        
+        // Find ShiftEvaluationUI if not assigned
+        if (evaluationUI == null)
+        {
+            #if UNITY_6000_0_OR_NEWER
+                evaluationUI = FindAnyObjectByType<ShiftEvaluationUI>();
+            #else
+                evaluationUI = FindObjectOfType<ShiftEvaluationUI>();
+            #endif
+            
+            if (evaluationUI == null)
+            {
+                Debug.LogError("[StationManager] ShiftEvaluationUI not found! Please assign it in inspector or add to scene.");
             }
         }
 
@@ -150,14 +159,9 @@ public class StationManager : Singleton<StationManager>
         // Initialize shift metrics
         currentShift = new ShiftMetrics();
         
-        // Hide performance review initially
-        if (performanceReviewPanel != null)
-            performanceReviewPanel.SetActive(false);
-        
         // Hide end shift button initially
         if (endShiftButton != null)
             endShiftButton.gameObject.SetActive(false);
-
     }
 
     protected override void OnDestroy()
@@ -225,15 +229,24 @@ public class StationManager : Singleton<StationManager>
         {
             startBtnUI.interactable = false;
             // Change button text if it has text component
-            Text btnText = startBtnUI.GetComponentInChildren<Text>();
-            if (btnText != null)
+            TextMeshProUGUI btnText = startBtnUI.GetComponentInChildren<TextMeshProUGUI>();
+            if (btnText == null)
+            {
+                // Fallback to legacy Text
+                Text legacyText = startBtnUI.GetComponentInChildren<Text>();
+                if (legacyText != null)
+                    legacyText.text = "Shift In Progress";
+            }
+            else
+            {
                 btnText.text = "Shift In Progress";
+            }
         }
         
         if (endShiftButton != null)
             endShiftButton.gameObject.SetActive(true);
         
-        Debug.Log("=== SHIFT STARTED ===");
+        Debug.Log("[StationManager] === SHIFT STARTED ===");
     }
     
     /// <summary>
@@ -261,13 +274,13 @@ public class StationManager : Singleton<StationManager>
         // Get AI evaluation
         ShiftEvaluation evaluation = aiManager.EvaluateShift(currentShift);
         
-        // Show performance review
+        // Show performance review using new UI
         ShowPerformanceReview(evaluation);
         
         // Increment AI progression
         aiManager.IncrementShiftProgression();
         
-        Debug.Log($"=== SHIFT ENDED === Classification: {evaluation.classification}");
+        Debug.Log($"[StationManager] === SHIFT ENDED === Classification: {evaluation.classification}");
         Debug.Log(currentShift.GetSummary());
     }
     
@@ -308,8 +321,20 @@ public class StationManager : Singleton<StationManager>
         // Update end shift button text
         if (endShiftButton != null)
         {
-            Text btnText = endShiftButton.GetComponentInChildren<Text>();
-            if (btnText != null)
+            TextMeshProUGUI btnText = endShiftButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (btnText == null)
+            {
+                // Fallback to legacy Text
+                Text legacyText = endShiftButton.GetComponentInChildren<Text>();
+                if (legacyText != null)
+                {
+                    float remaining = shiftDuration - shiftTimer;
+                    int minutes = Mathf.FloorToInt(remaining / 60f);
+                    int seconds = Mathf.FloorToInt(remaining % 60f);
+                    legacyText.text = $"End Shift ({minutes:00}:{seconds:00})";
+                }
+            }
+            else
             {
                 float remaining = shiftDuration - shiftTimer;
                 int minutes = Mathf.FloorToInt(remaining / 60f);
@@ -320,85 +345,65 @@ public class StationManager : Singleton<StationManager>
     }
     
     /// <summary>
-    /// Show performance review screen
+    /// Show performance review screen using new UI system
     /// </summary>
     void ShowPerformanceReview(ShiftEvaluation evaluation)
     {
-        // Hide game UI
-        if (homeUI != null) homeUI.SetActive(false);
-        if (storeUI != null) storeUI.SetActive(false);
-        
-        // Show review panel
-        if (performanceReviewPanel != null)
-            performanceReviewPanel.SetActive(true);
-        
-        // Populate review UI
-        if (reviewTitleText != null)
-            reviewTitleText.text = "SHIFT PERFORMANCE REVIEW";
-        
-        if (classificationText != null)
+        if (evaluationUI == null)
         {
-            classificationText.text = evaluation.classification;
-            // Color based on performance
-            if (evaluation.overallScore >= 0.85f)
-                classificationText.color = Color.green;
-            else if (evaluation.overallScore >= 0.70f)
-                classificationText.color = Color.yellow;
-            else
-                classificationText.color = Color.red;
+            Debug.LogError("[StationManager] ShiftEvaluationUI not assigned! Cannot show performance review.");
+            // Fallback: just continue to next shift
+            ContinueToNextShift();
+            return;
         }
         
-        if (evaluationMessageText != null)
-            evaluationMessageText.text = evaluation.message;
+        // Show the evaluation UI (it handles everything)
+        evaluationUI.ShowEvaluation(evaluation);
         
-        if (observationsText != null && evaluation.observations.Count > 0)
-        {
-            string obs = "\nOBSERVATIONS:\n";
-            foreach (string observation in evaluation.observations)
-            {
-                obs += $"• {observation}\n";
-            }
-            observationsText.text = obs;
-        }
-        else if (observationsText != null)
-        {
-            observationsText.text = "";
-        }
-        
-        if (aiStatusText != null)
-            aiStatusText.text = aiManager.GetAIStatus();
+        Debug.Log("[StationManager] Performance review displayed");
     }
     
     /// <summary>
     /// Continue to next shift (Groundhog Day loop)
+    /// Called by the Continue button in ShiftEvaluationUI
     /// </summary>
     public void ContinueToNextShift()
     {
-        // Hide review
-        if (performanceReviewPanel != null)
-            performanceReviewPanel.SetActive(false);
+        // The ShiftEvaluationUI handles hiding itself and unlocking cursor
         
         // Show home UI
-        if (homeUI != null) homeUI.SetActive(true);
+        if (homeUI != null) 
+            homeUI.SetActive(true);
         
         // Re-enable start button
         if (startBtnUI != null)
         {
             startBtnUI.interactable = true;
-            Text btnText = startBtnUI.GetComponentInChildren<Text>();
-            if (btnText != null)
+            TextMeshProUGUI btnText = startBtnUI.GetComponentInChildren<TextMeshProUGUI>();
+            if (btnText == null)
+            {
+                // Fallback to legacy Text
+                Text legacyText = startBtnUI.GetComponentInChildren<Text>();
+                if (legacyText != null)
+                    legacyText.text = "Accept Shift";
+            }
+            else
+            {
                 btnText.text = "Accept Shift";
+            }
         }
         
         // Reset shift timer display
         if (shiftTimerText != null)
+        {
             shiftTimerText.text = "No Active Shift";
-
+            shiftTimerText.color = Color.white;
+        }
         
         // NOTE: Money and upgrades persist (player progression)
         // NOTE: Resources should reset or be at current state
         
-        Debug.Log("=== READY FOR NEXT SHIFT ===");
+        Debug.Log("[StationManager] === READY FOR NEXT SHIFT ===");
     }
     
     // ===== END SHIFT SYSTEM METHODS =====
@@ -448,7 +453,6 @@ public class StationManager : Singleton<StationManager>
             if (workingIcon != null)
                 workingIcon.SetActive(true);
         }
-    
     }
 
     public void StartMining()
@@ -468,7 +472,6 @@ public class StationManager : Singleton<StationManager>
             workingIcon.SetActive(false);
 
         hasPlayedWorkstationOff = true;
-        
     }
     
     /// <summary>
@@ -502,7 +505,7 @@ public class StationManager : Singleton<StationManager>
             float powerPerc = powerStorage.amountPerc * 100f;
             
             if (powerSlider != null)
-                powerSlider.value = powerPerc;  // Update slider!
+                powerSlider.value = powerPerc;
             
             if (powerTextUI != null)
                 powerTextUI.text = powerPerc.ToString("0") + "%";
@@ -513,7 +516,7 @@ public class StationManager : Singleton<StationManager>
             float oxygenPerc = oxygenStorage.amountPerc * 100f;
             
             if (oxygenSlider != null)
-                oxygenSlider.value = oxygenPerc;  // Update slider!
+                oxygenSlider.value = oxygenPerc;
             
             if (oxygenTextUI != null)
                 oxygenTextUI.text = oxygenPerc.ToString("0") + "%";
@@ -640,7 +643,6 @@ public class StationManager : Singleton<StationManager>
             playerOxygen.UpgardeMaxCapacity();
             points -= playerOxygen.UpgradeCost;
         }
-
     }
 
     public void UpgradeMask()

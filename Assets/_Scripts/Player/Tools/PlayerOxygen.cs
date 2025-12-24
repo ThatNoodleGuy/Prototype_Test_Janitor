@@ -13,7 +13,6 @@ public class PlayerOxygen : MonoBehaviour
     [SerializeField] private float decreaseOxygenBy = 1f;
     
     [Header("Upgrade Settings")]
-    [SerializeField] private float upgradePerc = 1.1f;
     [SerializeField] private int level = 1;
     [SerializeField] private int baseUpgradeCost = 10;
     
